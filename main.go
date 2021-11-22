@@ -1,17 +1,21 @@
-package InstaSniffer
+package main
 
 import (
-	"InstaSniffer/API"
-	"InstaSniffer/UserInfo"
+	"InstaSniffer/api"
+	"InstaSniffer/info"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 )
 
 func worker(id int, jobs <-chan string, result chan<- string) {
 	for j := range jobs {
 		fmt.Println("Worker", id, "starting new:", j)
-		if err := UserInfo.UploadData(j); err != nil {
+		if err := info.UploadData(j); err != nil {
 			log.Error(err)
 		}
 		time.Sleep(time.Millisecond)
@@ -22,28 +26,50 @@ func worker(id int, jobs <-chan string, result chan<- string) {
 }
 
 func coreWorker() {
+	// Буферизация на 10 элементов
+	jobs := make(chan string, 10)
+	results := make(chan string, 10)
 
-	// Work with this case
-	jobList := []string{"steptospace", "mua.shor", "sweetheart_snail"}
+	fmt.Println("jobs", jobs, "res:", results)
 
-	numJobs := len(jobList)
-	jobs := make(chan string, numJobs)
-	results := make(chan string, numJobs)
+	w := api.Worker{JobsChan: jobs}
 
-	//Позже поправить. Сделать через env
-	for w := 1; w <= 1; w++ {
-		go worker(w, jobs, results)
+	go api.ConnectionAPI(w)
+
+	//env
+	thread := os.Getenv("THR")
+	count, err := strconv.Atoi(thread)
+	if err != nil {
+		log.Error(err)
 	}
-
-	for _, login := range jobList {
-		fmt.Println("Start job")
-		jobs <- "http://www.instagram.com/" + login + "/?__a=1"
+	for i := 1; i <= count; i++ {
+		go worker(i, w.JobsChan, results)
 	}
-	time.Sleep(time.Second * 10)
 }
 
 func main() {
-	// Create connection with API
-	API.ConnectionAPI()
-	//coreWorker()
+
+	// Create connection with api
+
+	coreWorker()
+
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		os.Exit(1)
+	}()
+
+	for {
+		fmt.Println("sleeping ...")
+		time.Sleep(time.Second * 10)
+	}
+
+	// TODO:
+	// 1. Реализовать роуты в апи (новая задача и получение результата)
+	// 2. Настройки через переменные окружения (при запуске докера -e)
+	// 3. Swagger (генерить структуры через go generate)
+	// 4. Добавить коды ошибок в апи (404, 500...)
+	// 5. Добавить дефолтного пользователя, если нет возможности авторизоваться
+	// * БД - сохранять результаты в таблицу users
 }

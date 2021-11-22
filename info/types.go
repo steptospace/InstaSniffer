@@ -1,4 +1,4 @@
-package UserInfo
+package info
 
 import "time"
 

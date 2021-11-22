@@ -9,7 +9,8 @@ RUN go mod download
 COPY *.go /usr/src/app
 
 RUN go build -o /usr/src/app/main
+RUN chmod +x /usr/src/app/main
 
 EXPOSE 8000
 
-CMD ["/usr/src/app/main"]
+CMD [ "/usr/src/app/main" ]

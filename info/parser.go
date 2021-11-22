@@ -1,4 +1,4 @@
-package UserInfo
+package info
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 func UploadData(url string) error {
 
 	fmt.Println(url)
-
+	url = "http://www.instagram.com/" + url + "/?__a=1"
 	userData := Configure{}
 	spaceClient := http.Client{
 		Timeout: time.Second * 2, // Timeout after 2 seconds
