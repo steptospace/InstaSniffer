@@ -1,18 +1,16 @@
 package info
 
 import (
+	"InstaSniffer/api"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 )
 
-func UploadData(url string) error {
+func UploadData(url string) (err error, ii api.ImportantInfo) {
 
-	fmt.Println(url)
 	url = "http://www.instagram.com/" + url + "/?__a=1"
 	userData := Configure{}
 	spaceClient := http.Client{
@@ -33,7 +31,8 @@ func UploadData(url string) error {
 		log.Fatal(err)
 	}
 
-	fmt.Println(res.Cookies())
+	// We can check  cookies
+	//fmt.Println(res.Cookies())
 
 	if res.Body != nil {
 		defer res.Body.Close()
@@ -46,32 +45,51 @@ func UploadData(url string) error {
 
 	err = json.Unmarshal(body, &userData)
 	if err != nil {
-		return err
+		return err, ii
 	}
 
-	fmt.Printf("---------------------%T ----------------------", userData.Graphql)
+	//fmt.Println(userData.Graphql)
+	accounting(infoAboutUser(userData.Graphql.User))
 
-	//Нужна структура полезной информации если так можно выразиться
-	// Для каждого пользователя вот ее как раз и загоняем в файл
-
-	//accounting("mua.shor")
-
-	return nil
+	return nil, infoAboutUser(userData.Graphql.User)
 }
 
 // Определится с полями какие в бд нужны и в каком виде
 
-func accounting(userUid string) {
-	file, err := os.Create(userUid + ".txt")
+func accounting(data api.ImportantInfo) {
+	file, _ := json.MarshalIndent(data, "", " ")
+	err := ioutil.WriteFile(data.Name+".json", file, 0644)
 	if err != nil {
 		log.Error(err)
 	}
-	defer file.Close()
-
-	// json struct Info about user
-	file.WriteString("Hello " + userUid)
 }
 
-func infoAboutUser() {
+func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
+	//Name
+	b.Name = a.FullName
 
+	//Username
+	b.Username = a.Username
+
+	// Bio
+	b.Bio = a.Biography
+
+	//Created time
+	b.Created_at = time.Now()
+
+	//Avatars
+	b.Avatar = a.ProfilePicURLHd
+
+	for _, j := range a.EdgeOwnerToTimelineMedia.Edges {
+		if j.Node.IsVideo == true {
+			b.Videos = append(b.Videos, api.Media{
+				Url:         j.Node.DisplayURL,
+				Description: j.Node.EdgeMediaToCaption.Edges[0].Node.Text})
+		} else {
+			b.Images = append(b.Images, api.Media{
+				Url:         j.Node.DisplayURL,
+				Description: j.Node.EdgeMediaToCaption.Edges[0].Node.Text})
+		}
+	}
+	return b
 }
