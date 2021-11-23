@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"time"
 )
 
 // This method send GET and POST request
@@ -18,9 +19,8 @@ import (
 // delete - delete all/* user(s) info
 
 type User struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 var users []User
@@ -51,10 +51,8 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for _, item := range users {
 		if item.ID == params["id"] {
-			if item.Status == params["status"] {
-				json.NewEncoder(w).Encode(item)
-				return
-			}
+			json.NewEncoder(w).Encode(j.Status[item.Name])
+			return
 		}
 	}
 }
@@ -64,9 +62,13 @@ func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var user User
 	_ = json.NewDecoder(r.Body).Decode(&user)
-	//user.ID = strconv.Itoa(rand.Intn(1000000)) // worker number
 	users = append(users, user)
 	json.NewEncoder(w).Encode(user)
+	j.JobsChan <- user.Name
+	//
+	j.Status[user.Name] = &OutputData{
+		State: "On Work",
+	}
 }
 
 // Update user
@@ -99,8 +101,29 @@ func (j Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(users)
 }
 
+type ImportantInfo struct {
+	Username   string
+	Name       string
+	Bio        string
+	Created_at time.Time
+	Images     []Media
+	Videos     []Media
+	Avatar     string // link on photo
+}
+
+type Media struct {
+	Url         string
+	Description string
+}
+
+type OutputData struct {
+	State  string
+	Output ImportantInfo
+}
+
 type Worker struct {
 	JobsChan chan string
+	Status   map[string]*OutputData
 }
 
 // Написать функцию записи в файл Функция маршал
@@ -109,14 +132,12 @@ func ConnectionAPI(w Worker) {
 	fmt.Println("Server listen ...")
 	r := mux.NewRouter()
 	// examples case
-	users = append(users, User{ID: "1", Name: "Jonny", Status: "On Work"})
-	users = append(users, User{ID: "2", Name: "Lilly", Status: "Completed"})
 
 	r.HandleFunc("/users", w.getAllUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
 	//Добавить роут /users/{id}/result. рез статус *(в работе или завершен)
 	//В ответе json с полями status и result (ImportantInfo)
-	r.HandleFunc("/users/{id}/state", w.GetUserStatus).Methods("GET")
+	r.HandleFunc("/users/{id}/status", w.GetUserStatus).Methods("GET")
 	r.HandleFunc("/users", w.PostUser).Methods("POST")
 	r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
 	r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
