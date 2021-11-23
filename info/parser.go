@@ -81,15 +81,23 @@ func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
 	b.Avatar = a.ProfilePicURLHd
 
 	for _, j := range a.EdgeOwnerToTimelineMedia.Edges {
+		mediaEdges := j.Node.EdgeMediaToCaption.Edges
+		desc := ""
+		if len(mediaEdges) != 0 {
+			desc = mediaEdges[0].Node.Text
+		}
+
 		if j.Node.IsVideo == true {
 			b.Videos = append(b.Videos, api.Media{
 				Url:         j.Node.DisplayURL,
-				Description: j.Node.EdgeMediaToCaption.Edges[0].Node.Text})
+				Description: desc})
 		} else {
 			b.Images = append(b.Images, api.Media{
 				Url:         j.Node.DisplayURL,
-				Description: j.Node.EdgeMediaToCaption.Edges[0].Node.Text})
+				Description: desc})
 		}
 	}
 	return b
 }
+
+//Доделать коннектор

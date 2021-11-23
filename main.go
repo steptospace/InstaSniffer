@@ -8,12 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 )
 
-func worker(id int, jobs <-chan string, result chan<- string, status map[string]*api.OutputData) {
-	for j := range jobs {
+func worker(id int, w api.Worker) {
+	for j := range w.JobsChan {
 		fmt.Println("Worker", id, "starting new:", j)
 		err, ii := info.UploadData(j)
 		if err != nil {
@@ -23,23 +24,25 @@ func worker(id int, jobs <-chan string, result chan<- string, status map[string]
 		fmt.Println("Worker", id, "finished:", j)
 
 		// add mutex
-		///sync.Mutex.Lock()
+		w.Update(j, w.SafeZone.Status, ii)
+		/*mu.Lock()
 		tt := status[j]
 		tt.State = "Done"
 		tt.Output = ii
-		///sync.Mutex.Unlock()
+		mu.Unlock()
+		*/
 	}
 }
 
 func coreWorker() {
 	// Буферизация на 10 элементов
 	jobs := make(chan string, 10)
-	results := make(chan string, 10)
 
 	//request status
 	status := make(map[string]*api.OutputData)
-
-	w := api.Worker{JobsChan: jobs, Status: status}
+	var mu sync.Mutex
+	// Исправил раньше все было без сейвзон
+	w := api.Worker{JobsChan: jobs, SafeZone: api.SafeMapState{Status: status, Mu: mu}}
 
 	go api.ConnectionAPI(w)
 
@@ -50,7 +53,7 @@ func coreWorker() {
 		log.Error(err)
 	}
 	for i := 1; i <= count; i++ {
-		go worker(i, w.JobsChan, results, w.Status)
+		go worker(i, w)
 	}
 }
 
@@ -65,8 +68,8 @@ func main() {
 	os.Exit(1)
 
 	// TODO:
-	// 1. Реализовать роуты в апи (новая задача и получение результата)
-	// 1.1 Save res in map with sys_calls
+	// +1. Реализовать роуты в апи (новая задача и получение результата)
+	// 		1.1 Save res in map with sys_calls
 	// +2. Настройки через переменные окружения (при запуске докера -e)
 	// 3. Swagger (генерить структуры через go generate)
 	// 4. Добавить коды ошибок в апи (404, 500...)

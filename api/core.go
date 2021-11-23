@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -51,7 +52,7 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for _, item := range users {
 		if item.ID == params["id"] {
-			json.NewEncoder(w).Encode(j.Status[item.Name])
+			json.NewEncoder(w).Encode(j.SafeZone.Status[item.Name])
 			return
 		}
 	}
@@ -65,10 +66,12 @@ func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 	users = append(users, user)
 	json.NewEncoder(w).Encode(user)
 	j.JobsChan <- user.Name
-	//
-	j.Status[user.Name] = &OutputData{
+	// At here
+	j.SafeZone.Mu.Lock()
+	j.SafeZone.Status[user.Name] = &OutputData{
 		State: "On Work",
 	}
+	j.SafeZone.Mu.Unlock()
 }
 
 // Update user
@@ -123,10 +126,21 @@ type OutputData struct {
 
 type Worker struct {
 	JobsChan chan string
-	Status   map[string]*OutputData
+	SafeZone SafeMapState
 }
 
-// Написать функцию записи в файл Функция маршал
+type SafeMapState struct {
+	Mu     sync.Mutex
+	Status map[string]*OutputData
+}
+
+func (j Worker) Update(username string, state map[string]*OutputData, ii ImportantInfo) {
+	j.SafeZone.Mu.Lock()
+	tt := state[username]
+	tt.State = "Done"
+	tt.Output = ii
+	j.SafeZone.Mu.Unlock()
+}
 
 func ConnectionAPI(w Worker) {
 	fmt.Println("Server listen ...")
