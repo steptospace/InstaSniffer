@@ -19,7 +19,8 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
 
 	time.Sleep(time.Millisecond * 10)
@@ -28,7 +29,8 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 
 	res, err := spaceClient.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
 
 	// We can check  cookies
@@ -40,7 +42,8 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
 
 	err = json.Unmarshal(body, &userData)
