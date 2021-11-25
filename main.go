@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-func worker(id int, w api.Worker) {
+func worker(id int, w api.Worker, dummy api.ImportantInfo) {
 	for j := range w.JobsChan {
 		fmt.Println("Worker", id, "starting new:", j)
 		err, ii := info.UploadData(j)
 		if err != nil {
-			//Вывод ошибки, а так же вывод дефолтного пользователя
+			w.Update(j, w.SafeZone.Status, dummy)
 			log.Error(err)
 		}
 		time.Sleep(time.Millisecond)
@@ -38,6 +38,17 @@ func coreWorker() {
 
 	go api.ConnectionAPI(w)
 
+	//dummy user
+	// Info about model
+	// Work only empty data in ImportantInfo
+	dummy := api.ImportantInfo{
+		Avatar:    "None",
+		Name:      "TestValue",
+		Username:  "test_value",
+		Bio:       "None",
+		CreatedAt: time.Now(),
+	}
+
 	//env
 	thread := os.Getenv("THR")
 	count, err := strconv.Atoi(thread)
@@ -45,7 +56,7 @@ func coreWorker() {
 		log.Error(err)
 	}
 	for i := 1; i <= count; i++ {
-		go worker(i, w)
+		go worker(i, w, dummy)
 	}
 }
 
@@ -67,6 +78,6 @@ func main() {
 	// +2. Настройки через переменные окружения (при запуске докера -e)
 	// +3. Swagger (генерить структуры через go generate)
 	// 4. Добавить коды ошибок в апи (404, 500...)
-	// 5. Добавить дефолтного пользователя, если нет возможности авторизоваться
+	// +5. Добавить дефолтного пользователя, если нет возможности авторизоваться
 	// * БД - сохранять результаты в таблицу users
 }

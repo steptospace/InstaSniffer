@@ -70,6 +70,19 @@ components:
       required:
         - url
         - description
+    ErrInfo:
+      type: object
+      properties:
+        err:
+          type: string
+          example: Error 400
+        description:
+          type: string
+          example: Details about error
+      # Both properties are required
+      required:
+        - err
+        - description
 
 
 
@@ -87,11 +100,15 @@ paths:
         '200':
           description: OK
           content:
-            name/json:
+            application/json:
               schema:
                 $ref: '#/components/schemas/ImportantInfo'
         '404':
-          description: Uncorrect data please try again. Username examples (mua.shor, steptospace ...) Without terminal symbols
+            description: Uncorrect data please try again. Username examples (mua.shor, steptospace ...) Without terminal symbols
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrInfo'
 
 
   /users:
@@ -100,7 +117,7 @@ paths:
       requestBody:
         required: true
         content:
-          idk/json:
+          application/json:
             schema:
               $ref: '#/components/schemas/User'
       responses:
@@ -108,6 +125,10 @@ paths:
           description: Created
         '400':
           description: Cant created new user Please check your data and try again
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrInfo'
 
 
 

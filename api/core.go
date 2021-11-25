@@ -68,10 +68,6 @@ func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	users = append(users, user)
-	err = json.NewEncoder(w).Encode(user)
-	if err != nil {
-		log.Error(err)
-	}
 	j.JobsChan <- user.Name
 	j.Create(user)
 }
@@ -109,6 +105,7 @@ func (j Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 type OutputData struct {
 	State  string
 	Output ImportantInfo
+	Error  *ErrInfo
 }
 
 type Worker struct {
