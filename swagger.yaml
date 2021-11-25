@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: Title
+  description: Title
+  version: 1.0.0
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 1
+        name:
+          type: string
+          example: Arthur Dent
+      # Both properties are required
+      required:
+        - id
+        - name
+    ImportantInfo:
+      type: object
+      properties:
+        avatar:
+          type: string
+          example: url addres (link on photo)
+        username:
+          type: string
+          example: mua.shor
+        name:
+          type: string
+          example: John
+        bio:
+          type: string
+          example: Ohayo Im ... (T_T)
+        created_at:
+          type: string
+          format: date-time
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+          example: url addres
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+          example: url addres
+      # Both properties are required
+      required:
+        - avatar
+        - username
+        - name
+        - bio
+        - created_at
+        - images
+        - videos
+
+    Media:
+      type: object
+      properties:
+        url:
+          type: string
+          example: url addres
+        description:
+          type: string
+          example: Details
+      # Both properties are required
+      required:
+        - url
+        - description
+
+
+
+paths:
+  /users/{id}/status:
+    get:
+      summary: Check user status.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            name/json:
+              schema:
+                $ref: '#/components/schemas/ImportantInfo'
+        '404':
+          description: Uncorrect data please try again. Username examples (mua.shor, steptospace ...) Without terminal symbols
+
+
+  /users:
+    post:
+      summary: Creates a new user.
+      requestBody:
+        required: true
+        content:
+          idk/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Cant created new user Please check your data and try again
+
+
+

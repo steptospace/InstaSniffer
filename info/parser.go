@@ -75,7 +75,7 @@ func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
 	b.Bio = a.Biography
 
 	//Created time
-	b.Created_at = time.Now()
+	b.CreatedAt = time.Now()
 
 	//Avatars
 	b.Avatar = a.ProfilePicURLHd
@@ -99,5 +99,3 @@ func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
 	}
 	return b
 }
-
-//Доделать коннектор

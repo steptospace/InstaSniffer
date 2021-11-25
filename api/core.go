@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"sync"
-	"time"
 )
 
 // This method send GET and POST request
@@ -18,11 +17,6 @@ import (
 // /user - post create new column about user on db
 // put - re:check information and writing in file
 // delete - delete all/* user(s) info
-
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
 
 var users []User
 
@@ -38,9 +32,9 @@ func (j Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	for _, item := range users {
-		if item.ID == params["id"] {
+		if item.Id == params["id"] {
 			json.NewEncoder(w).Encode(item)
-
+			//404 прокинуть
 			return
 		}
 	}
@@ -51,8 +45,13 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	for _, item := range users {
-		if item.ID == params["id"] {
-			json.NewEncoder(w).Encode(j.SafeZone.Status[item.Name])
+		if item.Id == params["id"] {
+			err := json.NewEncoder(w).Encode(j.SafeZone.Status[item.Name])
+			if err != nil {
+				// 404?
+				fmt.Println("We are at here")
+				//log.Error(err)
+			}
 			return
 		}
 	}
@@ -62,16 +61,19 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var user User
-	_ = json.NewDecoder(r.Body).Decode(&user)
-	users = append(users, user)
-	json.NewEncoder(w).Encode(user)
-	j.JobsChan <- user.Name
-	// At here
-	j.SafeZone.Mu.Lock()
-	j.SafeZone.Status[user.Name] = &OutputData{
-		State: "On Work",
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		// Check this one
+		j.GetErrStatus(user, "Error: 400")
+		return
 	}
-	j.SafeZone.Mu.Unlock()
+	users = append(users, user)
+	err = json.NewEncoder(w).Encode(user)
+	if err != nil {
+		log.Error(err)
+	}
+	j.JobsChan <- user.Name
+	j.Create(user)
 }
 
 // Update user
@@ -79,11 +81,11 @@ func (j Worker) PutUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	for index, item := range users {
-		if item.ID == params["id"] {
+		if item.Id == params["id"] {
 			users = append(users[:index], users[index+1:]...)
 			var book User
 			_ = json.NewDecoder(r.Body).Decode(&book)
-			book.ID = params["id"]
+			book.Id = params["id"]
 			users = append(users, book)
 			json.NewEncoder(w).Encode(book)
 			return
@@ -96,27 +98,12 @@ func (j Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	for index, item := range users {
-		if item.ID == params["id"] {
+		if item.Id == params["id"] {
 			users = append(users[:index], users[index+1:]...)
 			break
 		}
 	}
 	json.NewEncoder(w).Encode(users)
-}
-
-type ImportantInfo struct {
-	Username   string
-	Name       string
-	Bio        string
-	Created_at time.Time
-	Images     []Media
-	Videos     []Media
-	Avatar     string // link on photo
-}
-
-type Media struct {
-	Url         string
-	Description string
 }
 
 type OutputData struct {
@@ -142,6 +129,23 @@ func (j Worker) Update(username string, state map[string]*OutputData, ii Importa
 	j.SafeZone.Mu.Unlock()
 }
 
+func (j Worker) Create(user User) {
+	j.SafeZone.Mu.Lock()
+	j.SafeZone.Status[user.Name] = &OutputData{
+		State: "On Work",
+	}
+	j.SafeZone.Mu.Unlock()
+}
+
+func (j Worker) GetErrStatus(user User, errCode string) {
+	j.SafeZone.Mu.Lock()
+	//Изменить код респонза
+	j.SafeZone.Status[user.Name] = &OutputData{
+		State: errCode,
+	}
+	j.SafeZone.Mu.Unlock()
+}
+
 func ConnectionAPI(w Worker) {
 	fmt.Println("Server listen ...")
 	r := mux.NewRouter()
@@ -155,5 +159,8 @@ func ConnectionAPI(w Worker) {
 	r.HandleFunc("/users", w.PostUser).Methods("POST")
 	r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
 	r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
-	log.Error(http.ListenAndServe(":8000", r))
+	err := http.ListenAndServe(":8000", r)
+	if err != nil {
+		log.Error(err)
+	}
 }
