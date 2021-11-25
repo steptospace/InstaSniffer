@@ -18,19 +18,12 @@ func worker(id int, w api.Worker) {
 		fmt.Println("Worker", id, "starting new:", j)
 		err, ii := info.UploadData(j)
 		if err != nil {
+			//Вывод ошибки, а так же вывод дефолтного пользователя
 			log.Error(err)
 		}
 		time.Sleep(time.Millisecond)
 		fmt.Println("Worker", id, "finished:", j)
-
-		// add mutex
 		w.Update(j, w.SafeZone.Status, ii)
-		/*mu.Lock()
-		tt := status[j]
-		tt.State = "Done"
-		tt.Output = ii
-		mu.Unlock()
-		*/
 	}
 }
 
@@ -41,7 +34,6 @@ func coreWorker() {
 	//request status
 	status := make(map[string]*api.OutputData)
 	var mu sync.Mutex
-	// Исправил раньше все было без сейвзон
 	w := api.Worker{JobsChan: jobs, SafeZone: api.SafeMapState{Status: status, Mu: mu}}
 
 	go api.ConnectionAPI(w)
@@ -57,6 +49,8 @@ func coreWorker() {
 	}
 }
 
+//go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
+
 func main() {
 
 	// Create connection with api
@@ -71,7 +65,7 @@ func main() {
 	// +1. Реализовать роуты в апи (новая задача и получение результата)
 	// 		1.1 Save res in map with sys_calls
 	// +2. Настройки через переменные окружения (при запуске докера -e)
-	// 3. Swagger (генерить структуры через go generate)
+	// +3. Swagger (генерить структуры через go generate)
 	// 4. Добавить коды ошибок в апи (404, 500...)
 	// 5. Добавить дефолтного пользователя, если нет возможности авторизоваться
 	// * БД - сохранять результаты в таблицу users
