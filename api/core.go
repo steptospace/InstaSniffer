@@ -33,8 +33,11 @@ func (j Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for _, item := range users {
 		if item.Id == params["id"] {
-			json.NewEncoder(w).Encode(item)
-			//404 прокинуть
+			err := json.NewEncoder(w).Encode(item)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
 			return
 		}
 	}
@@ -48,9 +51,9 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 		if item.Id == params["id"] {
 			err := json.NewEncoder(w).Encode(j.SafeZone.Status[item.Name])
 			if err != nil {
-				// 404?
-				fmt.Println("We are at here")
-				//log.Error(err)
+				//j.GetErrStatus(item.Id, "Error: 400")
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
 			}
 			return
 		}
@@ -64,7 +67,8 @@ func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		// Check this one
-		j.GetErrStatus(user, "Error: 400")
+		//j.GetErrStatus(user, "Error: 400")
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	users = append(users, user)
@@ -136,7 +140,6 @@ func (j Worker) Create(user User) {
 
 func (j Worker) GetErrStatus(user User, errCode string) {
 	j.SafeZone.Mu.Lock()
-	//Изменить код респонза
 	j.SafeZone.Status[user.Name] = &OutputData{
 		State: errCode,
 	}
@@ -146,7 +149,6 @@ func (j Worker) GetErrStatus(user User, errCode string) {
 func ConnectionAPI(w Worker) {
 	fmt.Println("Server listen ...")
 	r := mux.NewRouter()
-	// examples case
 
 	r.HandleFunc("/users", w.getAllUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
