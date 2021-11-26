@@ -152,8 +152,6 @@ func ConnectionAPI(w Worker) {
 
 	r.HandleFunc("/users", w.getAllUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
-	//Добавить роут /users/{id}/result. рез статус *(в работе или завершен)
-	//В ответе json с полями status и result (ImportantInfo)
 	r.HandleFunc("/users/{id}/status", w.GetUserStatus).Methods("GET")
 	r.HandleFunc("/users", w.PostUser).Methods("POST")
 	r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
