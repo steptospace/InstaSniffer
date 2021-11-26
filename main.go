@@ -38,13 +38,11 @@ func coreWorker() {
 
 	go api.ConnectionAPI(w)
 
-	//dummy user
-	// Info about model
-	// Work only empty data in ImportantInfo
+	// Work only when empty data in ImportantInfo
 	dummy := api.ImportantInfo{
 		Avatar:    "None",
-		Name:      "TestValue",
-		Username:  "test_value",
+		Name:      "None",
+		Username:  "None",
 		Bio:       "None",
 		CreatedAt: time.Now(),
 	}
@@ -55,6 +53,7 @@ func coreWorker() {
 	if err != nil {
 		log.Error(err)
 	}
+
 	for i := 1; i <= count; i++ {
 		go worker(i, w, dummy)
 	}
