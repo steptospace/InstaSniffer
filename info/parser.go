@@ -45,16 +45,13 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 		log.Error(err)
 		return err, ii
 	}
-
 	err = json.Unmarshal(body, &userData)
 	if err != nil {
 		return err, ii
 	}
-
-	//fmt.Println(userData.Graphql)
-	accounting(infoAboutUser(userData.Graphql.User))
-
-	return nil, infoAboutUser(userData.Graphql.User)
+	data := infoAboutUser(userData.Graphql.User)
+	accounting(data)
+	return nil, data
 }
 
 // Определится с полями какие в бд нужны и в каком виде
@@ -68,20 +65,13 @@ func accounting(data api.ImportantInfo) {
 }
 
 func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
-	//Name
-	b.Name = a.FullName
-
-	//Username
-	b.Username = a.Username
-
-	// Bio
-	b.Bio = a.Biography
-
-	//Created time
-	b.CreatedAt = time.Now()
-
-	//Avatars
-	b.Avatar = a.ProfilePicURLHd
+	b = api.ImportantInfo{
+		Name:      a.FullName,
+		Username:  a.Username,
+		Bio:       a.Biography,
+		CreatedAt: time.Now(),
+		Avatar:    a.ProfilePicURLHd,
+	}
 
 	for _, j := range a.EdgeOwnerToTimelineMedia.Edges {
 		mediaEdges := j.Node.EdgeMediaToCaption.Edges

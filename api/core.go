@@ -20,14 +20,23 @@ import (
 
 var users []User
 
+type Worker struct {
+	JobsChan chan string
+	SafeZone SafeMapState
+}
+
+type SafeMapState struct {
+	Mu     sync.Mutex
+	Status map[string]*OutputData
+}
+
 // Check all users
 func (j Worker) getAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
 
-// Information about user
-// Output info on web-wall
+// Info about user
 func (j Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -35,6 +44,7 @@ func (j Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 		if item.Id == params["id"] {
 			err := json.NewEncoder(w).Encode(item)
 			if err != nil {
+				//j.GetErrStatus(item, "Error: 404")
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
@@ -51,7 +61,7 @@ func (j Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 		if item.Id == params["id"] {
 			err := json.NewEncoder(w).Encode(j.SafeZone.Status[item.Name])
 			if err != nil {
-				//j.GetErrStatus(item.Id, "Error: 400")
+				//j.GetErrStatus(item, "Error: 404")
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
@@ -67,7 +77,7 @@ func (j Worker) PostUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		// Check this one
-		//j.GetErrStatus(user, "Error: 400")
+		//j.GetErrStatus(user.Name, "Error: 400")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -106,56 +116,41 @@ func (j Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(users)
 }
 
-type OutputData struct {
-	State  string
-	Output ImportantInfo
-	Error  *ErrInfo
-}
-
-type Worker struct {
-	JobsChan chan string
-	SafeZone SafeMapState
-}
-
-type SafeMapState struct {
-	Mu     sync.Mutex
-	Status map[string]*OutputData
-}
-
 func (j Worker) Update(username string, state map[string]*OutputData, ii ImportantInfo) {
 	j.SafeZone.Mu.Lock()
+	defer j.SafeZone.Mu.Unlock()
 	tt := state[username]
 	tt.State = "Done"
 	tt.Output = ii
-	j.SafeZone.Mu.Unlock()
 }
 
 func (j Worker) Create(user User) {
 	j.SafeZone.Mu.Lock()
+	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[user.Name] = &OutputData{
 		State: "On Work",
 	}
-	j.SafeZone.Mu.Unlock()
+
 }
 
-func (j Worker) GetErrStatus(user User, errCode string) {
+func (j Worker) GetErrStatus(username string, state map[string]*OutputData, errCode string) {
 	j.SafeZone.Mu.Lock()
-	j.SafeZone.Status[user.Name] = &OutputData{
+	defer j.SafeZone.Mu.Unlock()
+	j.SafeZone.Status[username] = &OutputData{
 		State: errCode,
 	}
-	j.SafeZone.Mu.Unlock()
+
 }
 
 func ConnectionAPI(w Worker) {
 	fmt.Println("Server listen ...")
 	r := mux.NewRouter()
-
 	r.HandleFunc("/users", w.getAllUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
 	r.HandleFunc("/users/{id}/status", w.GetUserStatus).Methods("GET")
 	r.HandleFunc("/users", w.PostUser).Methods("POST")
-	r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
-	r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
+	//r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
+	//r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
 	err := http.ListenAndServe(":8000", r)
 	if err != nil {
 		log.Error(err)
