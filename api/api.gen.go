@@ -30,6 +30,13 @@ type Media struct {
 	Url         string `json:"url"`
 }
 
+// OutputData defines model for OutputData.
+type OutputData struct {
+	Error  *ErrInfo      `json:"error,omitempty"`
+	Output ImportantInfo `json:"output"`
+	State  string        `json:"state"`
+}
+
 // User defines model for User.
 type User struct {
 	Id   string `json:"id"`
