@@ -19,8 +19,6 @@ import (
 // put - re:check information and writing in file
 // delete - delete all/* user(s) info
 
-var users []User
-
 type Worker struct {
 	JobsChan chan string
 	SafeZone SafeMapState
@@ -34,39 +32,72 @@ type SafeMapState struct {
 // Check all users
 func (j *Worker) getAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	var allUser []string
+	for _, value := range j.SafeZone.Status {
+		allUser = append(allUser, value.Output.Username)
+	}
+	json.NewEncoder(w).Encode(allUser)
 }
 
 // Info about user
 func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
-	for _, item := range users {
-		if item.Id == params["id"] {
-			err := json.NewEncoder(w).Encode(item)
+	//
+	representation := make(map[string]string)
+	checkAvailability := j.SafeZone.Status
+	if len(checkAvailability) == 0 {
+		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+		return
+	}
+
+	for key, _ := range j.SafeZone.Status {
+		if key == params["id"] {
+			representation[params["id"]] = checkAvailability[params["id"]].Output.Username
+			err := json.NewEncoder(w).Encode(representation[params["id"]])
 			if err != nil {
-				//j.GetErrStatus(item, "Error: 404")
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return
 			}
 			return
+		} else {
+			continue
 		}
 	}
-	json.NewEncoder(w).Encode(&User{})
+	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+	return
 }
 
 func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	//Check ID
+	checkAvailability := j.SafeZone.Status
+	if len(checkAvailability) == 0 {
+		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+		return
+	}
 
-	err := json.NewEncoder(w).Encode(j.SafeZone.Status[params["id"]])
+	err := json.NewEncoder(w).Encode(checkAvailability[params["id"]])
 	if err != nil {
-		//j.GetErrStatus(item, "Error: 404")
-		// may be this one have dummy response
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
+	for key, _ := range j.SafeZone.Status {
+		if key == params["id"] {
+			err := json.NewEncoder(w).Encode(checkAvailability[params["id"]])
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			return
+		} else {
+			continue
+		}
+	}
+	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+	return
 }
 
 // Create user
@@ -79,8 +110,23 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	j.JobsChan <- j.SafeZone.Status[id].Output.Name
-	j.Create(id)
+
+	// empty map
+	for key, value := range j.SafeZone.Status {
+		if value.Output.Username == j.SafeZone.Status[id].Output.Username && key != id {
+			// return if we have this value in map
+			j.SafeZone.Status[id].Output.Username = ""
+			err = json.NewEncoder(w).Encode(key)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		} else {
+			j.JobsChan <- j.SafeZone.Status[id].Output.Username
+			j.Create(id)
+		}
+	}
+
 	err = json.NewEncoder(w).Encode(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -88,7 +134,7 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update user
-func (j *Worker) PutUser(w http.ResponseWriter, r *http.Request) {
+/*func (j *Worker) PutUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	for index, item := range users {
@@ -118,6 +164,9 @@ func (j *Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(users)
 }
 
+
+*/
+
 func (j *Worker) Update(id string, ii ImportantInfo) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
@@ -131,7 +180,8 @@ func (j *Worker) Create(id string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
-		State: "On Work",
+		State:  "On Work",
+		Output: ImportantInfo{Username: j.SafeZone.Status[id].Output.Username},
 	}
 
 }
