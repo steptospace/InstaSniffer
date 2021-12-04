@@ -37,14 +37,8 @@ type OutputData struct {
 	State  string        `json:"state"`
 }
 
-// User defines model for User.
-type User struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-}
-
 // PostUsersJSONBody defines parameters for PostUsers.
-type PostUsersJSONBody User
+type PostUsersJSONBody OutputData
 
 // PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
 type PostUsersJSONRequestBody PostUsersJSONBody
