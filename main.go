@@ -3,12 +3,10 @@ package main
 import (
 	"InstaSniffer/api"
 	"InstaSniffer/info"
-	"fmt"
 	"github.com/kelseyhightower/envconfig"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -23,27 +21,25 @@ var dummy = api.ImportantInfo{
 }
 
 type envConfig struct {
-	Threads int `required:"true" envconfig:"THR"`
+	Threads    int `required:"true" envconfig:"THR"`
+	BufferSize int `required:"true" envconfig:"BS"`
 }
 
-func startWork(id int, w api.Worker) {
+func startWork(id int, w *api.Worker) {
 	for j := range w.JobsChan {
-		fmt.Println("Worker", id, "starting new:", j)
+		log.Info("Worker: ", id, " starting new: ", j)
 		err, ii := info.UploadData(j)
 		if err != nil {
-			w.Update(j, w.SafeZone.Status, dummy)
+			w.Update(j, dummy)
 			log.Error(err)
 		}
 		time.Sleep(time.Millisecond)
-		fmt.Println("Worker", id, "finished:", j)
-		w.Update(j, w.SafeZone.Status, ii)
+		log.Info("Worker", id, "finished:", j)
+		w.Update(j, ii)
 	}
 }
 
 func coreWorker() {
-	// Буферизация на 10 элементов
-	jobs := make(chan string, 10)
-
 	//env magic
 	var env envConfig
 	err := envconfig.Process("THR", &env)
@@ -52,15 +48,14 @@ func coreWorker() {
 	}
 
 	//request status
-	status := make(map[string]*api.OutputData)
-	var mu sync.Mutex
-	w := api.Worker{JobsChan: jobs, SafeZone: api.SafeMapState{Status: status, Mu: mu}}
 
-	go api.ConnectionAPI(w)
+	w := api.New(env.BufferSize)
+	go w.Start()
 
 	for i := 1; i <= env.Threads; i++ {
 		go startWork(i, w)
 	}
+
 }
 
 //go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
@@ -76,17 +71,19 @@ func main() {
 	os.Exit(1)
 
 	// TODO:
-	// + 1. Заменить в свагере структуру респонза для /users/{id}/status
-	// + 2. dummy можно вынести в var (снаружи функций), чтобы не передавать через параметры
-	//3. main.go 39, 58 - при вызове функций передаём туда w (api.Worker) - и при этом происходит копирование объекта мьютекса (mu).
-	//Это некорректно. Везде при вызове функций следует передавать указатель на api.Worker. Красиво было бы сделать так:
-	// + 4. Получение переменных окружения желательно вынести в отдельную функцию, в идеале создать структуру (типа envConfig).
-	//		И туда сохранить нужные переменные окружения (на случай, если их больше одной). В этой же функции весь парсинг переменных.
-	//		Переменную count лучше назвать countWorkers (чтобы было сразу понятно о чём это)
-	// + 5. Функцию worker лучше назвать startWork или как то глаголом (это по неймингу функций - должно быть действие)
-	// + 6. parser.go - 56, 58 - не надо 2 раза вызывать infoAboutUser - лучше сохранить в переменную
-	// + 7. parser.go - 72 - лучше сделать так:
-	// + 8. Убрать ненужные роуты из core.go
-	// + 9. Unlock() в мьютексах можно через defer делать
+	// + 3. main.go 39, 58 - при вызове функций передаём туда w (api.Worker) - и при этом происходит копирование объекта мьютекса (mu).
+	//		Это некорректно. Везде при вызове функций следует передавать указатель на api.Worker. Красиво было бы сделать так:
+	// + 1. Поменять название метода PostUser на что-то более осмысленное (напр. ParseUser)
+	//2. Если не может спарсить данные должен быть ответ dummy, но в ответе - пустая структура (надо проверить, почему так)
+	// + 3. Сделать то что я писала по 3 пункту (либо пиши, что именно не получается)
+	// + 4. Заменить все принты на логи (log.info..)
+	// +5. В пост запросе возвращать id (то есть генерить id на сервере, желательно uid).
+	//		Соотвественно в теле запроса останется только name. Так это будет ближе к реальности.
+	// + 6. Update, GetErrStatus - убрать из параметров state, т.к. мапа уже есть внутри j (Worker)
+	// + 7. В Update сделать обновление, по аналогии с getErrStatus
+	//8. Убрать глобальную переменную var users []User. Для выдачи статуса использовать мапу, где храним всю инфу о юзерах
+	//9. Если ввожу несуществующий айди при проверке статуса - выдаётся статус 200 - всё ок (должна выводиться ошибка + статус не 200).
+	//Плюс описание ошибки планировали выводить внутри OutputData, это уже где-то есть?
+	//10* Не запускать задачу, если она уже в работе
 	// * БД - сохранять результаты в таблицу users
 }
