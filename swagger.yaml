@@ -6,19 +6,6 @@ info:
 
 components:
   schemas:
-    User:
-      type: object
-      properties:
-        id:
-          type: string
-          example: 1
-        name:
-          type: string
-          example: Arthur Dent
-      # Both properties are required
-      required:
-        - id
-        - name
     ImportantInfo:
       type: object
       properties:
@@ -133,7 +120,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              $ref: '#/components/schemas/OutputData'
       responses:
         '201':
           description: Created

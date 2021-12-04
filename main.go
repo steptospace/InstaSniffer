@@ -35,16 +35,21 @@ func startWork(id int, w *api.Worker) {
 			if value.State == "On Work" && value.Output.Username == w.SafeZone.Status[key].Output.Username {
 				log.Info("Check key and value: ", key)
 				index = key
-			} else if value.State == "On Work" && value.Output.Username == "" {
-				w.Update(index, dummy)
-				return
 			}
+		}
+
+		if len(j) == 0 {
+			time.Sleep(time.Millisecond)
+			log.Info("Worker ", id, " finished: ", j)
+			w.Update(index, dummy)
+			return
 		}
 
 		err, ii := info.UploadData(j)
 		if err != nil {
 			w.Update(index, dummy)
 			log.Error(err)
+			return
 		}
 		time.Sleep(time.Millisecond)
 		log.Info("Worker ", id, " finished: ", j)
