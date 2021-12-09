@@ -6,6 +6,15 @@ info:
 
 components:
   schemas:
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+          example: Arthur Dent
+      # Both properties are required
+      required:
+        - username
     ImportantInfo:
       type: object
       properties:
@@ -75,7 +84,7 @@ components:
       type: object
       properties:
         err:
-          type: string
+          type: integer
           example: Error 400
         description:
           type: string
@@ -120,7 +129,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OutputData'
+              $ref: '#/components/schemas/User'
       responses:
         '201':
           description: Created
