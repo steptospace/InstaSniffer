@@ -10,7 +10,7 @@ import (
 // ErrInfo defines model for ErrInfo.
 type ErrInfo struct {
 	Description string `json:"description"`
-	Err         string `json:"err"`
+	Err         int    `json:"err"`
 }
 
 // ImportantInfo defines model for ImportantInfo.
@@ -37,8 +37,13 @@ type OutputData struct {
 	State  string        `json:"state"`
 }
 
+// User defines model for User.
+type User struct {
+	Username string `json:"username"`
+}
+
 // PostUsersJSONBody defines parameters for PostUsers.
-type PostUsersJSONBody OutputData
+type PostUsersJSONBody User
 
 // PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
 type PostUsersJSONRequestBody PostUsersJSONBody

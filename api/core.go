@@ -25,7 +25,7 @@ type Worker struct {
 }
 
 type SafeMapState struct {
-	Mu     sync.Mutex
+	Mu     sync.RWMutex
 	Status map[string]*OutputData
 }
 
@@ -53,6 +53,7 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	for key, _ := range j.SafeZone.Status {
 		if key == params["id"] {
+			// reading
 			representation[params["id"]] = checkAvailability[params["id"]].Output.Username
 			err := json.NewEncoder(w).Encode(representation[params["id"]])
 			if err != nil {
@@ -60,8 +61,6 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
-		} else {
-			continue
 		}
 	}
 	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
@@ -71,14 +70,21 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
+
 	//Check ID
+	//Use only for reading data
+	j.SafeZone.Mu.RLock()
 	checkAvailability := j.SafeZone.Status
+	j.SafeZone.Mu.RUnlock()
+
 	if len(checkAvailability) == 0 {
+		j.GetErrStatus(params["id"], http.StatusNotFound, "Incorrect id: Please search real data")
 		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
 		return
 	}
 
 	err := json.NewEncoder(w).Encode(checkAvailability[params["id"]])
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -92,10 +98,9 @@ func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			return
-		} else {
-			continue
 		}
 	}
+
 	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
 	return
 }
@@ -104,33 +109,44 @@ func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	id := strconv.Itoa(rand.Intn(1000000))
-	j.SafeZone.Status[id] = new(OutputData)
-	err := json.NewDecoder(r.Body).Decode(&j.SafeZone.Status[id].Output)
+
+	var task User
+	//Честно говоря не знаю как это сделать по другому
+	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// empty map
-	for key, value := range j.SafeZone.Status {
-		if value.Output.Username == j.SafeZone.Status[id].Output.Username && key != id {
-			// return if we have this value in map
-			j.SafeZone.Status[id].Output.Username = ""
-			err = json.NewEncoder(w).Encode(key)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		} else {
-			j.JobsChan <- j.SafeZone.Status[id].Output.Username
-			j.Create(id)
+	key, isDup := j.isDuplicate(task.Username)
+	if isDup {
+		err = json.NewEncoder(w).Encode(key)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	} else {
+		j.Create(id, task.Username)
+		j.JobsChan <- task.Username
 	}
 
 	err = json.NewEncoder(w).Encode(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+//Check duplicate in map
+func (j *Worker) isDuplicate(username string) (uid string, isDup bool) {
+	// empty map
+	j.SafeZone.Mu.RLock()
+	defer j.SafeZone.Mu.RUnlock()
+	for key, value := range j.SafeZone.Status {
+		if username == value.Output.Username {
+			isDup = true
+			return key, isDup
+		}
+	}
+	return uid, isDup
 }
 
 // Update user
@@ -176,21 +192,22 @@ func (j *Worker) Update(id string, ii ImportantInfo) {
 	}
 }
 
-func (j *Worker) Create(id string) {
+func (j *Worker) Create(id string, username string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
 		State:  "On Work",
-		Output: ImportantInfo{Username: j.SafeZone.Status[id].Output.Username},
+		Output: ImportantInfo{Username: username},
 	}
 
 }
 
-func (j *Worker) GetErrStatus(id string, errCode string) {
+func (j *Worker) GetErrStatus(id string, errCode int, description string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
-		State: errCode,
+		State: "Error",
+		Error: &ErrInfo{Err: errCode, Description: description},
 	}
 }
 
