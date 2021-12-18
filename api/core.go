@@ -32,6 +32,8 @@ type SafeMapState struct {
 // Check all users
 func (j *Worker) getAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	j.SafeZone.Mu.Lock()
+	defer j.SafeZone.Mu.Unlock()
 	var allUser []string
 	for _, value := range j.SafeZone.Status {
 		allUser = append(allUser, value.Output.Username)
@@ -44,30 +46,22 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	//
-	representation := make(map[string]string)
-	j.SafeZone.Mu.RLock()
-	checkAvailability := j.SafeZone.Status
-	j.SafeZone.Mu.RUnlock()
-	if len(checkAvailability) == 0 {
-		j.SetErrStatus(params["id"], http.StatusNotFound, "Incorrect id: Please search real data")
-		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+	data, notFound := j.getUserInfo(params["id"])
+	if notFound {
+		//Set params in new structure User can see json request and info about err in sys
+		j.SetErrStatus(params["id"], http.StatusNotFound, "Cant find this id Please check again")
+		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
 		return
-	}
-
-	for key, _ := range j.SafeZone.Status {
-		if key == params["id"] {
-			// reading
-			representation[params["id"]] = checkAvailability[params["id"]].Output.Username
-			err := json.NewEncoder(w).Encode(representation[params["id"]])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
+	} else {
+		err := json.NewEncoder(w).Encode(data.Output.Username)
+		// Нужна ли эта проверка Если честно я запутался
+		if err != nil {
+			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		return
 	}
-	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
-	return
 }
 
 func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
@@ -80,8 +74,7 @@ func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	if notFound {
 		//Set params in new structure User can see json request and info about err in sys
 		j.SetErrStatus(params["id"], http.StatusNotFound, "Cant find this id Please check again")
-		http.Error(w, "Cant find this id Please check again", http.StatusNotFound)
-		json.NewEncoder(w).Encode(data)
+		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
 		return
 	} else {
 		err := json.NewEncoder(w).Encode(data)
@@ -117,7 +110,6 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 
 	key, isDup := j.isDuplicate(task.Username)
 	if isDup {
-		// ???
 		err = json.NewEncoder(w).Encode(key)
 		if err != nil {
 			j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
