@@ -14,6 +14,7 @@ const (
 	dbname   = "postgres"
 )
 
+//
 func StartCommunicate(textRequest string) (string, error) {
 	//Start conversation to db
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
