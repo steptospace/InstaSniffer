@@ -215,7 +215,6 @@ func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
 	return data, notFound
 }
 
-// naming вери хард фор ми хелп ми плиз
 func (j *Worker) GetUsernameById(id string) (username string, isUsed bool) {
 	j.SafeZone.Mu.RLock()
 	defer j.SafeZone.Mu.RUnlock()
