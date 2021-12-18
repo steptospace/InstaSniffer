@@ -24,6 +24,11 @@ type ImportantInfo struct {
 	Videos    []Media   `json:"videos"`
 }
 
+// Inside defines model for Inside.
+type Inside struct {
+	Id string `json:"id"`
+}
+
 // Media defines model for Media.
 type Media struct {
 	Description string `json:"description"`

@@ -15,6 +15,15 @@ components:
       # Both properties are required
       required:
         - username
+    Inside:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 1234567890
+      # Both properties are required
+      required:
+        - id
     ImportantInfo:
       type: object
       properties:
@@ -133,6 +142,10 @@ paths:
       responses:
         '201':
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inside'
         '400':
           description: Cant created new user Please check your data and try again
           content:
