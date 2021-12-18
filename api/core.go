@@ -45,8 +45,11 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	//
 	representation := make(map[string]string)
+	j.SafeZone.Mu.RLock()
 	checkAvailability := j.SafeZone.Status
+	j.SafeZone.Mu.RUnlock()
 	if len(checkAvailability) == 0 {
+		j.SetErrStatus(params["id"], http.StatusNotFound, "Incorrect id: Please search real data")
 		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
 		return
 	}
@@ -70,67 +73,64 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
-
-	//Check ID
-	//Use only for reading data
-	j.SafeZone.Mu.RLock()
-	checkAvailability := j.SafeZone.Status
-	j.SafeZone.Mu.RUnlock()
-
-	if len(checkAvailability) == 0 {
-		j.GetErrStatus(params["id"], http.StatusNotFound, "Incorrect id: Please search real data")
-		http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
+	// 1. getUserInfo() (возвращает OutoutData, bool) (используется mutex Rlock)
+	// 2. if notFound createError(id) (используется mutex lock)
+	// 3. else json.NewEncoder(w).Encode(OutoutData)
+	data, notFound := j.getUserInfo(params["id"])
+	if notFound {
+		//Set params in new structure User can see json request and info about err in sys
+		j.SetErrStatus(params["id"], http.StatusNotFound, "Cant find this id Please check again")
+		http.Error(w, "Cant find this id Please check again", http.StatusNotFound)
+		json.NewEncoder(w).Encode(data)
 		return
-	}
-
-	err := json.NewEncoder(w).Encode(checkAvailability[params["id"]])
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	for key, _ := range j.SafeZone.Status {
-		if key == params["id"] {
-			err := json.NewEncoder(w).Encode(checkAvailability[params["id"]])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
+	} else {
+		err := json.NewEncoder(w).Encode(data)
+		// Нужна ли эта проверка Если честно я запутался
+		if err != nil {
+			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		return
 	}
-
-	http.Error(w, "Incorrect id: Please search real data:", http.StatusNotFound)
-	return
 }
 
 // Create user
 func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	id := strconv.Itoa(rand.Intn(1000000))
-
+	// Не уверен что тут подойдет создание
 	var task User
-	//Честно говоря не знаю как это сделать по другому
+	var user Inside
+	w.Header().Set("Content-Type", "application/json")
+	user.Id = strconv.Itoa(rand.Intn(1000000))
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
+		j.SetErrStatus(user.Id, http.StatusBadRequest, "We cant decode this data Check our params")
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if task.Username == "" {
+		j.SetErrStatus(user.Id, http.StatusBadRequest, "Incorrect Username please check this value and try again")
+		http.Error(w, "Empty username params", http.StatusBadRequest)
 		return
 	}
 
 	key, isDup := j.isDuplicate(task.Username)
 	if isDup {
+		// ???
 		err = json.NewEncoder(w).Encode(key)
 		if err != nil {
+			j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	} else {
-		j.Create(id, task.Username)
-		j.JobsChan <- task.Username
+		j.Create(user.Id, task.Username)
+		j.JobsChan <- user.Id
 	}
-
-	err = json.NewEncoder(w).Encode(id)
+	// if task.Username empty return err 400
+	err = json.NewEncoder(w).Encode(user)
 	if err != nil {
+		j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -202,7 +202,7 @@ func (j *Worker) Create(id string, username string) {
 
 }
 
-func (j *Worker) GetErrStatus(id string, errCode int, description string) {
+func (j *Worker) SetErrStatus(id string, errCode int, description string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
@@ -217,6 +217,33 @@ func New(bufferSize int) *Worker {
 	status := make(map[string]*OutputData)
 	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}}
 	return w
+}
+
+func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
+	j.SafeZone.Mu.RLock()
+	defer j.SafeZone.Mu.RUnlock()
+	if _, ok := j.SafeZone.Status[id]; ok {
+		// if we find user on system
+		data = *j.SafeZone.Status[id]
+		return data, notFound
+	} else {
+		notFound = true
+	}
+	return data, notFound
+}
+
+// naming вери хард фор ми хелп ми плиз
+func (j *Worker) GetUsernameById(id string) (username string, isUsed bool) {
+	j.SafeZone.Mu.RLock()
+	defer j.SafeZone.Mu.RUnlock()
+	if _, ok := j.SafeZone.Status[id]; ok {
+		isUsed = true
+		username = j.SafeZone.Status[id].Output.Username
+		return username, isUsed
+	} else {
+		isUsed = false
+	}
+	return username, isUsed
 }
 
 // Не очень понятно зачем так Но если надо То ок
