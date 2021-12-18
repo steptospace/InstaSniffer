@@ -54,7 +54,6 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err := json.NewEncoder(w).Encode(data.Output.Username)
-		// Нужна ли эта проверка Если честно я запутался
 		if err != nil {
 			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -203,14 +202,6 @@ func (j *Worker) SetErrStatus(id string, errCode int, description string) {
 	}
 }
 
-func New(bufferSize int) *Worker {
-	// Буферизация на 10 элементов
-	jobs := make(chan string, bufferSize)
-	status := make(map[string]*OutputData)
-	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}}
-	return w
-}
-
 func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
 	j.SafeZone.Mu.RLock()
 	defer j.SafeZone.Mu.RUnlock()
@@ -238,8 +229,13 @@ func (j *Worker) GetUsernameById(id string) (username string, isUsed bool) {
 	return username, isUsed
 }
 
-// Не очень понятно зачем так Но если надо То ок
-// Если не сложно поясни пожалуйста
+func New(bufferSize int) *Worker {
+	jobs := make(chan string, bufferSize)
+	status := make(map[string]*OutputData)
+	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}}
+	return w
+}
+
 func (j *Worker) Start() {
 	ConnectionAPI(j)
 }
