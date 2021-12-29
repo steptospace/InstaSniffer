@@ -11,6 +11,6 @@ COPY *.go /usr/src/app
 RUN go build -o /usr/src/app/main
 RUN chmod +x /usr/src/app/main
 
-EXPOSE 8000
+EXPOSE 8080 8080
 
 CMD [ "/usr/src/app/main" ]

@@ -3,6 +3,10 @@ package main
 import (
 	"InstaSniffer/api"
 	"InstaSniffer/info"
+	"database/sql"
+	"fmt"
+	"github.com/golang-migrate/migrate"
+	"github.com/golang-migrate/migrate/database/postgres"
 	"github.com/kelseyhightower/envconfig"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -44,15 +48,25 @@ func startWork(id int, w *api.Worker) {
 	}
 }
 
-func coreWorker() {
-	//env magic
+//go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
+
+func main() {
+	//Work with DataBase
+	db, err := sql.Open("postgres", "postgres://localhost:5432/database?sslmode=disable")
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	m, err := migrate.NewWithDatabaseInstance(
+		"file:///migrations",
+		"postgres", driver)
+	fmt.Print(m)
+	//m.Up() // or m.Step(2) if you want to explicitly set the number of migrations to run
+
+	// Create connection with api
+
 	var env envConfig
-	err := envconfig.Process("THR", &env)
+	err = envconfig.Process("THR", &env)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-
-	//request status
 
 	w := api.New(env.BufferSize)
 	go w.Start()
@@ -60,16 +74,6 @@ func coreWorker() {
 	for i := 1; i <= env.Threads; i++ {
 		go startWork(i, w)
 	}
-
-}
-
-//go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
-
-func main() {
-	//info.StartCommunicate("create table if not exist;")
-	// Create connection with api
-
-	coreWorker()
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
@@ -77,5 +81,5 @@ func main() {
 
 	// TODO:
 	// * БД - сохранять результаты в таблицу users
-	// 11 return Error struct in OutputData
+	// tests
 }
