@@ -20,9 +20,9 @@ import (
 // delete - delete all/* user(s) info
 
 const (
-	error  = "Error"
-	done   = "Done"
-	inWork = "In Work"
+	StatusError  = "Error"
+	StatusDone   = "Done"
+	statusInWork = "In Work"
 )
 
 type Worker struct {
@@ -36,7 +36,7 @@ type SafeMapState struct {
 }
 
 // Check all users
-func (j *Worker) getAllUsers(w http.ResponseWriter, r *http.Request) {
+func (j *Worker) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
@@ -79,43 +79,53 @@ func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	data, notFound := j.getUserInfo(params["id"])
 	if notFound {
 		//Set params in new structure User can see json request and info about err in sys
-		j.SetErrStatus(params["id"], http.StatusNotFound, "Cant find this id Please check again")
-		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(ErrInfo{
+			Err:         http.StatusNotFound,
+			Description: "Cant find this id Please check again",
+		})
 		return
 	} else {
-		err := json.NewEncoder(w).Encode(data)
-		// Нужна ли эта проверка Если честно я запутался
-		if err != nil {
-			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		if data.Error != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 		}
+		json.NewEncoder(w).Encode(data)
 		return
 	}
 }
 
 // Create user
 func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
-	var task User
-	var user Inside
 	w.Header().Set("Content-Type", "application/json")
+
+	var user Inside
 	user.Id = strconv.Itoa(rand.Intn(1000000))
+
+	var task User
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
-		j.SetErrStatus(user.Id, http.StatusBadRequest, "We cant decode this data Check our params")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrInfo{
+			Err:         http.StatusBadRequest,
+			Description: "We cant decode this data Check our params",
+		})
+
+		//j.SetErrStatus(user.Id, http.StatusBadRequest, "We cant decode this data Check our params")
 		return
 	}
 
 	if task.Username == "" {
-		j.SetErrStatus(user.Id, http.StatusBadRequest, "Incorrect Username please check this value and try again")
-		http.Error(w, "Empty username params", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrInfo{
+			Err:         http.StatusBadRequest,
+			Description: "Incorrect Username please check this value and try again",
+		})
 		return
 	}
 
 	key, isDup := j.isDuplicate(task.Username)
 	if isDup {
-		err = json.NewEncoder(w).Encode(key)
+		json.NewEncoder(w).Encode(Inside{Id: key})
 		/*if err != nil {
 			j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -127,7 +137,7 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 		j.JobsChan <- user.Id
 	}
 	// if task.Username empty return err 400
-	err = json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(user)
 	/*if err != nil {
 		j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -183,17 +193,12 @@ func (j *Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 */
 
-func (j *Worker) UpdateStatus(id string, ii ImportantInfo) {
+func (j *Worker) UpdateStatus(id string, ii ImportantInfo, state string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
-	/*
-		j.SafeZone.Status[id] = &OutputData{
-			State:  "Done",
-			Output: ii,
-		}
-	*/
+
 	// we wil use dummy
-	j.SafeZone.Status[id].State = done
+	j.SafeZone.Status[id].State = state
 	j.SafeZone.Status[id].Output = ii
 
 }
@@ -202,7 +207,7 @@ func (j *Worker) Create(id string, username string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
-		State:  inWork,
+		State:  statusInWork,
 		Output: ImportantInfo{Username: username},
 	}
 
@@ -211,10 +216,8 @@ func (j *Worker) Create(id string, username string) {
 func (j *Worker) SetErrStatus(id string, errCode int, description string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
-	j.SafeZone.Status[id] = &OutputData{
-		State: error,
-		Error: &ErrInfo{Err: errCode, Description: description},
-	}
+	j.SafeZone.Status[id].State = StatusError
+	j.SafeZone.Status[id].Error = &ErrInfo{Err: errCode, Description: description}
 }
 
 func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
@@ -254,7 +257,7 @@ func (j *Worker) Start() {
 func ConnectionAPI(w *Worker) {
 	log.Info("Server listen ...")
 	r := mux.NewRouter()
-	r.HandleFunc("/users", w.getAllUsers).Methods("GET")
+	r.HandleFunc("/users", w.GetAllUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
 	r.HandleFunc("/users/{id}/status", w.GetUserStatus).Methods("GET")
 	r.HandleFunc("/users", w.ParseUser).Methods("POST")

@@ -128,6 +128,12 @@ paths:
               application/json:
                 schema:
                   $ref: '#/components/schemas/ErrInfo'
+        '500':
+          description: Service havent any request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputData'
 
 
   /users:

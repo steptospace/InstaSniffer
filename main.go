@@ -33,13 +33,14 @@ func startWork(id int, w *api.Worker) {
 		err, ii := info.UploadData(name)
 		if err != nil {
 			w.SetErrStatus(j, http.StatusNotFound, err.Error())
-			w.UpdateStatus(j, dummy)
+			dummy.Username = name
+			w.UpdateStatus(j, dummy, api.StatusError)
 			log.Error(err)
-			break
+			continue
 		}
 		time.Sleep(time.Millisecond)
 		log.Info("Worker ", id, " finished: ", j)
-		w.UpdateStatus(j, ii)
+		w.UpdateStatus(j, ii, api.StatusDone)
 	}
 }
 
