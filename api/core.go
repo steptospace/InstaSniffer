@@ -263,7 +263,7 @@ func ConnectionAPI(w *Worker) {
 	r.HandleFunc("/users", w.ParseUser).Methods("POST")
 	//r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
 	//r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
-	err := http.ListenAndServe(":8000", r)
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		log.Error(err)
 	}

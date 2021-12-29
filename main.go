@@ -57,7 +57,7 @@ func main() {
 	m, err := migrate.NewWithDatabaseInstance(
 		"file:///migrations",
 		"postgres", driver)
-	fmt.Print(m)
+	fmt.Println(m)
 	//m.Up() // or m.Step(2) if you want to explicitly set the number of migrations to run
 
 	// Create connection with api
