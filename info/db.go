@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 const (
@@ -14,36 +16,51 @@ const (
 	dbname   = "postgres"
 )
 
-//
-func StartCommunicate(textRequest string) (string, error) {
-	//Start conversation to db
+func Connect(userName string, password string) *sql.DB {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+		host, port, userName, password, dbname)
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
-		return "Error: open connection dont work", err
-		// Не забыть про RollBack!!!
+		log.Error(err)
+		return nil
 	}
 
-	defer db.Close()
 	err = db.Ping()
 	if err != nil {
-		return "Error: cant ping to DataBase", err
+		log.Error(err)
+		return nil
 	}
+	fmt.Println("User connection ...\n Success")
+	return db
+}
 
-	fmt.Println("Successfully connected!")
+func Close(db *sql.DB) {
+	db.Close()
+}
 
-	// insert into * ()
-	// Simply input
-	rows, err := db.Query(textRequest) // send command to database
+//Input: User data (PostgreSQL script)
+//Output: "Ok (all data about request)" or "Error: ..."
+func StartCommunicate(db *sql.DB, textRequest string) (string, error) {
+	start := time.Now()
+	rows, err := db.Query(textRequest) // send command to database And execute
 	if err != nil {
-		//panic(err)
-		return "Error: the request cannot be sent", err
+		log.Error(err)
 	}
+
+	/*if _, err := os.Stat(logPath + "\\logs.txt"); errors.Is(err, os.ErrNotExist) {
+		log.Error(err)
+	}
+	*/
+	end := time.Now()
+	delta := end.Sub(start)
+
+	fmt.Println(delta)
+	// call any function
+	info := ""
+	//
 
 	defer rows.Close()
-
-	return "Success", nil
+	return info, nil
 }

@@ -19,6 +19,12 @@ import (
 // put - re:check information and writing in file
 // delete - delete all/* user(s) info
 
+const (
+	error  = "Error"
+	done   = "Done"
+	inWork = "In Work"
+)
+
 type Worker struct {
 	JobsChan chan string
 	SafeZone SafeMapState
@@ -53,12 +59,13 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
 		return
 	} else {
-		err := json.NewEncoder(w).Encode(data.Output.Username)
-		if err != nil {
+		json.NewEncoder(w).Encode(data.Output.Username)
+		/*if err != nil {
 			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		*/
 		return
 	}
 }
@@ -89,7 +96,6 @@ func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 
 // Create user
 func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
-	// Не уверен что тут подойдет создание
 	var task User
 	var user Inside
 	w.Header().Set("Content-Type", "application/json")
@@ -110,20 +116,23 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 	key, isDup := j.isDuplicate(task.Username)
 	if isDup {
 		err = json.NewEncoder(w).Encode(key)
-		if err != nil {
+		/*if err != nil {
 			j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		*/
+		return
 	} else {
 		j.Create(user.Id, task.Username)
 		j.JobsChan <- user.Id
 	}
 	// if task.Username empty return err 400
 	err = json.NewEncoder(w).Encode(user)
-	if err != nil {
+	/*if err != nil {
 		j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	*/
 }
 
 //Check duplicate in map
@@ -174,20 +183,26 @@ func (j *Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 */
 
-func (j *Worker) Update(id string, ii ImportantInfo) {
+func (j *Worker) UpdateStatus(id string, ii ImportantInfo) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
-	j.SafeZone.Status[id] = &OutputData{
-		State:  "Done",
-		Output: ii,
-	}
+	/*
+		j.SafeZone.Status[id] = &OutputData{
+			State:  "Done",
+			Output: ii,
+		}
+	*/
+	// we wil use dummy
+	j.SafeZone.Status[id].State = done
+	j.SafeZone.Status[id].Output = ii
+
 }
 
 func (j *Worker) Create(id string, username string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
-		State:  "On Work",
+		State:  inWork,
 		Output: ImportantInfo{Username: username},
 	}
 
@@ -197,7 +212,7 @@ func (j *Worker) SetErrStatus(id string, errCode int, description string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
 	j.SafeZone.Status[id] = &OutputData{
-		State: "Error",
+		State: error,
 		Error: &ErrInfo{Err: errCode, Description: description},
 	}
 }
@@ -205,9 +220,9 @@ func (j *Worker) SetErrStatus(id string, errCode int, description string) {
 func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
 	j.SafeZone.Mu.RLock()
 	defer j.SafeZone.Mu.RUnlock()
-	if _, ok := j.SafeZone.Status[id]; ok {
+	if val, ok := j.SafeZone.Status[id]; ok {
 		// if we find user on system
-		data = *j.SafeZone.Status[id]
+		data = *val
 		return data, notFound
 	} else {
 		notFound = true
@@ -215,17 +230,14 @@ func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
 	return data, notFound
 }
 
-func (j *Worker) GetUsernameById(id string) (username string, isUsed bool) {
+func (j *Worker) GetUsernameById(id string) (username string) {
 	j.SafeZone.Mu.RLock()
 	defer j.SafeZone.Mu.RUnlock()
-	if _, ok := j.SafeZone.Status[id]; ok {
-		isUsed = true
-		username = j.SafeZone.Status[id].Output.Username
-		return username, isUsed
-	} else {
-		isUsed = false
+	if val, ok := j.SafeZone.Status[id]; ok {
+		username = val.Output.Username
+		return username
 	}
-	return username, isUsed
+	return username
 }
 
 func New(bufferSize int) *Worker {

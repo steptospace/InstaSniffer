@@ -29,23 +29,17 @@ type envConfig struct {
 func startWork(id int, w *api.Worker) {
 	for j := range w.JobsChan {
 		log.Info("Worker: ", id, " starting new: ", j)
-		if name, isUsed := w.GetUsernameById(j); !isUsed {
-			time.Sleep(time.Millisecond)
-			log.Info("Worker ", id, " finished: ", j)
-			w.Update(j, dummy)
-			return
-		} else {
-			err, ii := info.UploadData(name)
-			if err != nil {
-				w.Update(j, dummy)
-				w.SetErrStatus(j, http.StatusNotFound, err.Error())
-				log.Error(err)
-				return
-			}
-			time.Sleep(time.Millisecond)
-			log.Info("Worker ", id, " finished: ", j)
-			w.Update(j, ii)
+		name := w.GetUsernameById(j)
+		err, ii := info.UploadData(name)
+		if err != nil {
+			w.SetErrStatus(j, http.StatusNotFound, err.Error())
+			w.UpdateStatus(j, dummy)
+			log.Error(err)
+			break
 		}
+		time.Sleep(time.Millisecond)
+		log.Info("Worker ", id, " finished: ", j)
+		w.UpdateStatus(j, ii)
 	}
 }
 
