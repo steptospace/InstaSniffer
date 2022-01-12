@@ -3,10 +3,6 @@ package main
 import (
 	"InstaSniffer/api"
 	"InstaSniffer/info"
-	"database/sql"
-	"fmt"
-	"github.com/golang-migrate/migrate"
-	"github.com/golang-migrate/migrate/database/postgres"
 	"github.com/kelseyhightower/envconfig"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -14,6 +10,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 // Work only when empty data in ImportantInfo
@@ -52,13 +52,24 @@ func startWork(id int, w *api.Worker) {
 
 func main() {
 	//Work with DataBase
-	db, err := sql.Open("postgres", "postgres://localhost:5432/database?sslmode=disable")
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
-	m, err := migrate.NewWithDatabaseInstance(
-		"file:///migrations",
-		"postgres", driver)
-	fmt.Println(m)
-	//m.Up() // or m.Step(2) if you want to explicitly set the number of migrations to run
+	//db, err := sql.Open("postgres", "postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
+	//if err != nil {
+	//	panic(err)
+	//}
+	//driver, err := postgres.WithInstance(db, &postgres.Config{})
+	//if err != nil {
+	//	panic(err)
+	//}
+	//fmt.Println(driver)
+	m, err := migrate.New(
+		"file://db/migrations",
+		"postgres://postgres:admin@localhost:5432/postgres?sslmode=disable")
+	if err != nil {
+		log.Error(err)
+	}
+	if err := m.Up(); err != migrate.ErrNoChange {
+		log.Error(err)
+	}
 
 	// Create connection with api
 

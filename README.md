@@ -12,3 +12,6 @@ Check docker space:
 
 DB Migration:
 #### migrate create -ext sql -dir db/migrations -seq create_items_table
+
+Check docker-compose:
+#### docker-compose up -d
