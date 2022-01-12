@@ -1,22 +1,5 @@
 package info
 
-import "time"
-
-type ImportantInfo struct {
-	username   string
-	name       string
-	bio        string
-	created_at time.Time
-	images     []media
-	videos     []media
-	avatar     string
-}
-
-type media struct {
-	url         string
-	description string
-}
-
 type UserInfo struct {
 	Biography              string      `json:"biography"`
 	BlockedByViewer        bool        `json:"blocked_by_viewer"`
@@ -112,7 +95,11 @@ type UserInfo struct {
 				HasUpcomingEvent     bool   `json:"has_upcoming_event"`
 				AccessibilityCaption string `json:"accessibility_caption"`
 				EdgeMediaToCaption   struct {
-					Edges []interface{} `json:"edges"`
+					Edges []struct {
+						Node struct {
+							Text string `json:"text"`
+						} `json:"node"`
+					} `json:"edges"`
 				} `json:"edge_media_to_caption"`
 				EdgeMediaToComment struct {
 					Count int `json:"count"`

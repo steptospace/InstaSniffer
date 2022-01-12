@@ -1,18 +1,16 @@
 package info
 
 import (
+	"InstaSniffer/api"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 )
 
-func UploadData(url string) error {
+func UploadData(url string) (err error, ii api.ImportantInfo) {
 
-	fmt.Println(url)
 	url = "http://www.instagram.com/" + url + "/?__a=1"
 	userData := Configure{}
 	spaceClient := http.Client{
@@ -21,7 +19,8 @@ func UploadData(url string) error {
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
 
 	time.Sleep(time.Millisecond * 10)
@@ -30,10 +29,12 @@ func UploadData(url string) error {
 
 	res, err := spaceClient.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
 
-	fmt.Println(res.Cookies())
+	// We can check  cookies
+	//fmt.Println(res.Cookies())
 
 	if res.Body != nil {
 		defer res.Body.Close()
@@ -41,37 +42,53 @@ func UploadData(url string) error {
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err, ii
 	}
-
 	err = json.Unmarshal(body, &userData)
 	if err != nil {
-		return err
+		return err, ii
 	}
-
-	fmt.Printf("---------------------%T ----------------------", userData.Graphql)
-
-	//Нужна структура полезной информации если так можно выразиться
-	// Для каждого пользователя вот ее как раз и загоняем в файл
-
-	//accounting("mua.shor")
-
-	return nil
+	data := infoAboutUser(userData.Graphql.User)
+	accounting(data)
+	return nil, data
 }
 
 // Определится с полями какие в бд нужны и в каком виде
 
-func accounting(userUid string) {
-	file, err := os.Create(userUid + ".txt")
+func accounting(data api.ImportantInfo) {
+	file, _ := json.MarshalIndent(data, "", " ")
+	err := ioutil.WriteFile(data.Name+".json", file, 0644)
 	if err != nil {
 		log.Error(err)
 	}
-	defer file.Close()
-
-	// json struct Info about user
-	file.WriteString("Hello " + userUid)
 }
 
-func infoAboutUser() {
+func infoAboutUser(a UserInfo) (b api.ImportantInfo) {
+	b = api.ImportantInfo{
+		Name:      a.FullName,
+		Username:  a.Username,
+		Bio:       a.Biography,
+		CreatedAt: time.Now(),
+		Avatar:    a.ProfilePicURLHd,
+	}
 
+	for _, j := range a.EdgeOwnerToTimelineMedia.Edges {
+		mediaEdges := j.Node.EdgeMediaToCaption.Edges
+		desc := ""
+		if len(mediaEdges) != 0 {
+			desc = mediaEdges[0].Node.Text
+		}
+
+		if j.Node.IsVideo == true {
+			b.Videos = append(b.Videos, api.Media{
+				Url:         j.Node.DisplayURL,
+				Description: desc})
+		} else {
+			b.Images = append(b.Images, api.Media{
+				Url:         j.Node.DisplayURL,
+				Description: desc})
+		}
+	}
+	return b
 }

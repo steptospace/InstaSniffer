@@ -3,73 +3,94 @@ package main
 import (
 	"InstaSniffer/api"
 	"InstaSniffer/info"
-	"fmt"
+	"github.com/kelseyhightower/envconfig"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func worker(id int, jobs <-chan string, result chan<- string) {
-	for j := range jobs {
-		fmt.Println("Worker", id, "starting new:", j)
-		if err := info.UploadData(j); err != nil {
+// Work only when empty data in ImportantInfo
+var dummy = api.ImportantInfo{
+	Avatar:    "None",
+	Name:      "None",
+	Username:  "None",
+	Bio:       "None",
+	CreatedAt: time.Now(),
+}
+
+type envConfig struct {
+	Threads    int `required:"true" envconfig:"THR"`
+	BufferSize int `required:"true" envconfig:"BS"`
+}
+
+func startWork(id int, w *api.Worker) {
+	for j := range w.JobsChan {
+		log.Info("Worker: ", id, " starting new: ", j)
+		name := w.GetUsernameById(j)
+		err, ii := info.UploadData(name)
+		if err != nil {
+			w.SetErrStatus(j, http.StatusNotFound, err.Error())
+			dummy.Username = name
+			w.UpdateStatus(j, dummy, api.StatusError)
 			log.Error(err)
+			continue
 		}
 		time.Sleep(time.Millisecond)
-		fmt.Println("Worker", id, "finished:", j)
-		result <- j
-		//передается структура надо запарсить только Нужные поля и сделать файлик
+		log.Info("Worker ", id, " finished: ", j)
+		w.UpdateStatus(j, ii, api.StatusDone)
 	}
 }
 
-func coreWorker() {
-	// Буферизация на 10 элементов
-	jobs := make(chan string, 10)
-	results := make(chan string, 10)
+//go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
 
-	fmt.Println("jobs", jobs, "res:", results)
-
-	w := api.Worker{JobsChan: jobs}
-
-	go api.ConnectionAPI(w)
-
-	//env
-	thread := os.Getenv("THR")
-	count, err := strconv.Atoi(thread)
+func main() {
+	//Work with DataBase
+	//db, err := sql.Open("postgres", "postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
+	//if err != nil {
+	//	panic(err)
+	//}
+	//driver, err := postgres.WithInstance(db, &postgres.Config{})
+	//if err != nil {
+	//	panic(err)
+	//}
+	//fmt.Println(driver)
+	m, err := migrate.New(
+		"file://db/migrations",
+		"postgres://postgres:admin@localhost:5432/postgres?sslmode=disable")
 	if err != nil {
 		log.Error(err)
 	}
-	for i := 1; i <= count; i++ {
-		go worker(i, w.JobsChan, results)
+	if err := m.Up(); err != migrate.ErrNoChange {
+		log.Error(err)
 	}
-}
-
-func main() {
 
 	// Create connection with api
 
-	coreWorker()
-
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		os.Exit(1)
-	}()
-
-	for {
-		fmt.Println("sleeping ...")
-		time.Sleep(time.Second * 10)
+	var env envConfig
+	err = envconfig.Process("THR", &env)
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 
+	w := api.New(env.BufferSize)
+	go w.Start()
+
+	for i := 1; i <= env.Threads; i++ {
+		go startWork(i, w)
+	}
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+	os.Exit(1)
+
 	// TODO:
-	// 1. Реализовать роуты в апи (новая задача и получение результата)
-	// 2. Настройки через переменные окружения (при запуске докера -e)
-	// 3. Swagger (генерить структуры через go generate)
-	// 4. Добавить коды ошибок в апи (404, 500...)
-	// 5. Добавить дефолтного пользователя, если нет возможности авторизоваться
 	// * БД - сохранять результаты в таблицу users
+	// tests
 }
