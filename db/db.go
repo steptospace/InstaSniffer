@@ -5,6 +5,9 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"time"
 )
 
 const (
@@ -33,4 +36,25 @@ func Initialize(username, password, database string) (Database, error) {
 	}
 	log.Println("Database connection established")
 	return db, nil
+}
+
+type TestData struct {
+	gorm.Model
+	id         string
+	name       string
+	status     string
+	created_at time.Time
+}
+
+func TestCreation() {
+	sqlDB, err := sql.Open("postgres", "postgres")
+	if err != nil {
+		fmt.Errorf("Error: idk", err)
+	}
+
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: sqlDB,
+	}), &gorm.Config{})
+
+	gormDB.Create(&TestData{id: "100", name: "test", status: "done", created_at: time.Now()})
 }

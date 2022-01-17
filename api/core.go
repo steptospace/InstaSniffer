@@ -1,6 +1,7 @@
 package api
 
 import (
+	"InstaSniffer/db"
 	"encoding/json"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
@@ -143,6 +144,8 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	*/
+
+	db.TestCreation()
 }
 
 //Check duplicate in map

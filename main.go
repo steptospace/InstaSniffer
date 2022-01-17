@@ -62,11 +62,12 @@ func main() {
 	//}
 	//fmt.Println(driver)
 	m, err := migrate.New(
-		"file://db/migrations",
-		"postgres://postgres:admin@localhost:5432/postgres?sslmode=disable")
+		"file://db/migration",
+		"postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
 	if err != nil {
 		log.Error(err)
 	}
+	// May be this one
 	if err := m.Up(); err != migrate.ErrNoChange {
 		log.Error(err)
 	}
