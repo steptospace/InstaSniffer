@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
@@ -52,30 +51,21 @@ func startWork(id int, w *api.Worker) {
 
 func main() {
 	//Work with DataBase
-	//db, err := sql.Open("postgres", "postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
+	//m, err := migrate.New(
+	//	"file://db/migration",
+	//	"postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
 	//if err != nil {
-	//	panic(err)
+	//	log.Error(err)
 	//}
-	//driver, err := postgres.WithInstance(db, &postgres.Config{})
-	//if err != nil {
-	//	panic(err)
+	//// May be this one
+	//if err := m.Up(); err != migrate.ErrNoChange {
+	//	log.Error(err)
 	//}
-	//fmt.Println(driver)
-	m, err := migrate.New(
-		"file://db/migration",
-		"postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
-	if err != nil {
-		log.Error(err)
-	}
-	// May be this one
-	if err := m.Up(); err != migrate.ErrNoChange {
-		log.Error(err)
-	}
 
 	// Create connection with api
 
 	var env envConfig
-	err = envconfig.Process("THR", &env)
+	err := envconfig.Process("THR", &env)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

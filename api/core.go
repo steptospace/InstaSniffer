@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -29,6 +30,7 @@ const (
 type Worker struct {
 	JobsChan chan string
 	SafeZone SafeMapState
+	DB       *gorm.DB
 }
 
 type SafeMapState struct {
@@ -36,7 +38,6 @@ type SafeMapState struct {
 	Status map[string]*OutputData
 }
 
-// Check all users
 func (j *Worker) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	j.SafeZone.Mu.Lock()
@@ -48,7 +49,6 @@ func (j *Worker) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(allUser)
 }
 
-// Info about user
 func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -61,12 +61,6 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		json.NewEncoder(w).Encode(data.Output.Username)
-		/*if err != nil {
-			j.SetErrStatus(params["id"], http.StatusBadRequest, err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		*/
 		return
 	}
 }
@@ -74,9 +68,6 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 func (j *Worker) GetUserStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
-	// 1. getUserInfo() (возвращает OutoutData, bool) (используется mutex Rlock)
-	// 2. if notFound createError(id) (используется mutex lock)
-	// 3. else json.NewEncoder(w).Encode(OutoutData)
 	data, notFound := j.getUserInfo(params["id"])
 	if notFound {
 		//Set params in new structure User can see json request and info about err in sys
@@ -110,8 +101,6 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 			Err:         http.StatusBadRequest,
 			Description: "We cant decode this data Check our params",
 		})
-
-		//j.SetErrStatus(user.Id, http.StatusBadRequest, "We cant decode this data Check our params")
 		return
 	}
 
@@ -127,25 +116,14 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 	key, isDup := j.isDuplicate(task.Username)
 	if isDup {
 		json.NewEncoder(w).Encode(Inside{Id: key})
-		/*if err != nil {
-			j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		*/
 		return
 	} else {
 		j.Create(user.Id, task.Username)
 		j.JobsChan <- user.Id
+		//Корректно ли это Хммм ...
+		//db.Crete(j.DB, j.SafeZone.Status[user.Id], user.Id)
 	}
-	// if task.Username empty return err 400
 	json.NewEncoder(w).Encode(user)
-	/*if err != nil {
-		j.SetErrStatus(user.Id, http.StatusInternalServerError, "Server error try again")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-	*/
-
-	db.TestCreation()
 }
 
 //Check duplicate in map
@@ -199,11 +177,8 @@ func (j *Worker) DeleteUser(w http.ResponseWriter, r *http.Request) {
 func (j *Worker) UpdateStatus(id string, ii ImportantInfo, state string) {
 	j.SafeZone.Mu.Lock()
 	defer j.SafeZone.Mu.Unlock()
-
-	// we wil use dummy
 	j.SafeZone.Status[id].State = state
 	j.SafeZone.Status[id].Output = ii
-
 }
 
 func (j *Worker) Create(id string, username string) {
@@ -213,7 +188,6 @@ func (j *Worker) Create(id string, username string) {
 		State:  statusInWork,
 		Output: ImportantInfo{Username: username},
 	}
-
 }
 
 func (j *Worker) SetErrStatus(id string, errCode int, description string) {
@@ -227,7 +201,6 @@ func (j *Worker) getUserInfo(id string) (data OutputData, notFound bool) {
 	j.SafeZone.Mu.RLock()
 	defer j.SafeZone.Mu.RUnlock()
 	if val, ok := j.SafeZone.Status[id]; ok {
-		// if we find user on system
 		data = *val
 		return data, notFound
 	} else {
@@ -246,10 +219,12 @@ func (j *Worker) GetUsernameById(id string) (username string) {
 	return username
 }
 
+//If we want use db May be we will try create handler at here
 func New(bufferSize int) *Worker {
 	jobs := make(chan string, bufferSize)
 	status := make(map[string]*OutputData)
-	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}}
+	Db := db.Init()
+	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}, DB: Db}
 	return w
 }
 
