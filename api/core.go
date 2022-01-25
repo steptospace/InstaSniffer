@@ -246,28 +246,24 @@ func New(bufferSize int) *Worker {
 	return w
 }
 
-func (j *Worker) Start() {
-	ConnectionAPI(j)
+func (j *Worker) Start(port string) {
+	log.Info("Server listen ...")
+	r := mux.NewRouter()
+	r.HandleFunc("/users", j.GetAllUsers).Methods("GET")
+	r.HandleFunc("/users/{id}", j.GetUser).Methods("GET")
+	r.HandleFunc("/users/{id}/status", j.GetUserStatus).Methods("GET")
+	r.HandleFunc("/users", j.ParseUser).Methods("POST")
+	//r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
+	//r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
+	err := http.ListenAndServe(":"+port, r)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 }
 
 func (j *Worker) Close() {
 	time.Sleep(time.Second)
 	db.CloseDb(j.DB)
 	os.Exit(1)
-}
-
-func ConnectionAPI(w *Worker) {
-	log.Info("Server listen ...")
-	r := mux.NewRouter()
-	r.HandleFunc("/users", w.GetAllUsers).Methods("GET")
-	r.HandleFunc("/users/{id}", w.GetUser).Methods("GET")
-	r.HandleFunc("/users/{id}/status", w.GetUserStatus).Methods("GET")
-	r.HandleFunc("/users", w.ParseUser).Methods("POST")
-	//r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
-	//r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
-	err := http.ListenAndServe(":8080", r)
-	if err != nil {
-		log.Error(err)
-		return
-	}
 }

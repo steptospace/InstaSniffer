@@ -34,3 +34,7 @@ func GetInfoById(DB *gorm.DB, id string) {
 	}
 	fmt.Println(res.Select(&result, id))
 }
+
+func DeleteRecord(DB *gorm.DB, id string) {
+	DB.Delete(Data{}, id)
+}

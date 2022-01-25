@@ -25,8 +25,9 @@ var dummy = api.ImportantInfo{
 }
 
 type envConfig struct {
-	Threads    int `required:"true" envconfig:"THR" default:"2"`
-	BufferSize int `required:"true" envconfig:"BS" default:"2"`
+	Threads    int    `required:"true" envconfig:"THR" default:"2"`
+	BufferSize int    `required:"true" envconfig:"BS" default:"2"`
+	Port       string `required:"true" envconfig:"PORT" default:"8080"`
 }
 
 func startWork(id int, w *api.Worker) {
@@ -51,9 +52,6 @@ func startWork(id int, w *api.Worker) {
 
 func main() {
 
-	//Port int `required:"true" envconfig:"PORT" default:"8080"`
-	//Пока не знаю как пробросить
-
 	// Create connection with api
 	var env envConfig
 	err := envconfig.Process("THR", &env)
@@ -62,7 +60,7 @@ func main() {
 	}
 
 	w := api.New(env.BufferSize)
-	go w.Start()
+	go w.Start(env.Port)
 
 	for i := 1; i <= env.Threads; i++ {
 		go startWork(i, w)

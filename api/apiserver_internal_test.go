@@ -1,8 +1,10 @@
 package api
 
 import (
+	"InstaSniffer/db"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"net/http"
@@ -10,50 +12,67 @@ import (
 	"testing"
 )
 
-func TestAddNewUser(t *testing.T) {
-	w := New(1)
-	go w.Start()
-	// Create new user and check data
+func supportMethod(data []byte) {
+
 	testProfile := User{Username: "rahmaninov"}
 	data, err := json.Marshal(testProfile)
 	if err != nil {
-		t.Error("json.Marshal cant understand format")
+		fmt.Errorf("json.Marshal cant understand format")
 	}
-
-	// request to api-server
-	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(w.ParseUser)
-	handler.ServeHTTP(rr, req)
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+	res, err := http.Post("http://localhost:8080/users", "application/json", bytes.NewBuffer(data))
+	if status := res.StatusCode; status != http.StatusOK {
+		fmt.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
 
-	testId := Inside{Id: "498081"}
-	data, err = json.Marshal(testId)
+	bodyBytes, err := io.ReadAll(res.Body)
 	if err != nil {
-		t.Fatal(err)
+		fmt.Errorf("Unknown data")
+	}
+	bodyString := string(bodyBytes)
+	if len(bodyString) == 0 {
+		fmt.Errorf("Empty data")
 	}
 
-	// On system programming 0x0a == \n
-	data = append(data, 0x0a)
+	testId := Inside{}
+	err = json.Unmarshal(bodyBytes, &testId)
+	if err != nil {
+		fmt.Errorf("Unmarshal cant use")
+	}
+
+	if testId.Id == "" {
+		fmt.Errorf("Empty id columns")
+	}
+
+}
+
+func TestAddNewUser(t *testing.T) {
+	w := New(1)
+	go w.Start("8080")
+	// Create new user and check data
+
+	// request to api-server
+	//req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(data))
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	rr := httptest.NewRecorder()
+
+	supportMethod()
 
 	if rr.Body.String() != string(data) {
 		t.Errorf("handler returned unexpected body: got %v want %v",
 			rr.Body.String(), string(data))
 	}
 
-	w.Close()
+	db.DeleteRecord(w.DB, "498081")
+	//w.Close()
 }
 
 func TestGetEmptyInfo(t *testing.T) {
 	w := New(1)
-	go w.Start()
+	go w.Start("8080")
 
 	_, err := http.NewRequest("GET", "/users", nil)
 	if err != nil {
@@ -82,7 +101,7 @@ func TestGetEmptyInfo(t *testing.T) {
 
 func TestGetUsers(t *testing.T) {
 	w := New(1)
-	go w.Start()
+	go w.Start("8080")
 
 	testProfile := User{Username: "rahmaninov"}
 	data, err := json.Marshal(testProfile)
@@ -143,7 +162,7 @@ func TestGetUsers(t *testing.T) {
 
 func TestGetUserInfo(t *testing.T) {
 	w := New(1)
-	go w.Start()
+	go w.Start("8080")
 	data := `{
     "username": "rahmaninov"
 }`
@@ -193,7 +212,7 @@ func TestGetUserInfo(t *testing.T) {
 
 func TestGetUserStatus(t *testing.T) {
 	w := New(1)
-	go w.Start()
+	go w.Start("8080")
 
 	testProfile := User{Username: "rahmaninov"}
 	data, err := json.Marshal(testProfile)
