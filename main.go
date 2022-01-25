@@ -25,9 +25,12 @@ var dummy = api.ImportantInfo{
 }
 
 type envConfig struct {
-	Threads    int    `required:"true" envconfig:"THR" default:"2"`
-	BufferSize int    `required:"true" envconfig:"BS" default:"2"`
-	Port       string `required:"true" envconfig:"PORT" default:"8080"`
+	Threads      int    `required:"true" envconfig:"THR" default:"2"`
+	BufferSize   int    `required:"true" envconfig:"BS" default:"2"`
+	Port         string `required:"true" envconfig:"PORT" default:"8080"`
+	PostgresUser string `required:"true" envconfig:"POSTGRES_USER" default:"postgres"`
+	PostgresPass string `required:"true" envconfig:"POSTGRES_PASSWORD" default:"admin"`
+	PostgresDb   string `required:"true" envconfig:"POSTGRES_DB" default:"postgres"`
 }
 
 func startWork(id int, w *api.Worker) {
@@ -59,7 +62,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	w := api.New(env.BufferSize)
+	w := api.New(env.BufferSize, env.PostgresUser, env.PostgresPass, env.PostgresDb)
 	go w.Start(env.Port)
 
 	for i := 1; i <= env.Threads; i++ {

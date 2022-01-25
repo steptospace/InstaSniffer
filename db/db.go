@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func Init() (*gorm.DB, error) {
-	dbURL := "postgres://postgres:admin@localhost:5432/postgres"
+func Init(user string, pass string, database string) (*gorm.DB, error) {
+	dbURL := "postgres://" + user + ":" + pass + "@localhost:5432/" + database
 	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
 	if err != nil {
 		log.Fatalln(err)

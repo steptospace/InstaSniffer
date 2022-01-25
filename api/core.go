@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 	"math/rand"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -57,13 +56,27 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 	//
 	data, notFound := j.getUserInfo(params["id"])
 	if notFound {
-		//Set params in new structure User can see json request and info about err in sys
-		j.SetErrStatus(params["id"], http.StatusNotFound, "Cant find this id Please check again")
-		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
+		//Set params in new structure
+		//User can see json request and info about err in sys
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(ErrInfo{
+			Err:         http.StatusNotFound,
+			Description: "Cant find this id Please check again",
+		})
 		return
 	} else {
-		db.GetInfoById(j.DB, params["id"])
-		json.NewEncoder(w).Encode(data.Output.Username)
+		if data.Error != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+		dbData, err := db.GetInfoById(j.DB, params["id"])
+		if err != nil {
+			log.Error(err)
+		}
+		if data.Output.Username == dbData.Name {
+			json.NewEncoder(w).Encode(data)
+			return
+		}
 		return
 	}
 }
@@ -123,7 +136,8 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 	} else {
 		j.Create(user.Id, task.Username)
 		j.JobsChan <- user.Id
-		db.AddRecord(j.DB, user.Id)
+
+		db.AddRecord(j.DB, user.Id, task.Username, statusInWork)
 	}
 	json.NewEncoder(w).Encode(user)
 }
@@ -222,10 +236,10 @@ func (j *Worker) GetUsernameById(id string) (username string) {
 }
 
 // Check connection
-func tryConnection() *gorm.DB {
+func tryConnection(user string, pass string, database string) *gorm.DB {
 
 	for errCounter := 0; errCounter < 6; errCounter++ {
-		res, err := db.Init()
+		res, err := db.Init(user, pass, database)
 		if err != nil {
 			time.Sleep(10 * time.Second)
 			continue
@@ -238,10 +252,10 @@ func tryConnection() *gorm.DB {
 }
 
 //If we want use db May be we will try create handler at here
-func New(bufferSize int) *Worker {
+func New(bufferSize int, user string, pass string, database string) *Worker {
 	jobs := make(chan string, bufferSize)
 	status := make(map[string]*OutputData)
-	Db := tryConnection()
+	Db := tryConnection(user, pass, database)
 	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}, DB: Db}
 	return w
 }
@@ -255,15 +269,24 @@ func (j *Worker) Start(port string) {
 	r.HandleFunc("/users", j.ParseUser).Methods("POST")
 	//r.HandleFunc("/users/{id}", w.PutUser).Methods("PUT")
 	//r.HandleFunc("/users/{id}", w.DeleteUser).Methods("DELETE")
-	err := http.ListenAndServe(":"+port, r)
-	if err != nil {
-		log.Error(err)
-		return
+
+	// Не очень понял как именно закрытие сделать
+	// Посмотрел пару примеров, но как то ...
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+	// Some data but I don't know what is a data
+
 }
 
 func (j *Worker) Close() {
 	time.Sleep(time.Second)
 	db.CloseDb(j.DB)
-	os.Exit(1)
 }
