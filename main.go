@@ -25,8 +25,8 @@ var dummy = api.ImportantInfo{
 }
 
 type envConfig struct {
-	Threads    int `required:"true" envconfig:"THR"`
-	BufferSize int `required:"true" envconfig:"BS"`
+	Threads    int `required:"true" envconfig:"THR" default:"2"`
+	BufferSize int `required:"true" envconfig:"BS" default:"2"`
 }
 
 func startWork(id int, w *api.Worker) {
@@ -50,20 +50,11 @@ func startWork(id int, w *api.Worker) {
 //go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
 
 func main() {
-	//Work with DataBase
-	//m, err := migrate.New(
-	//	"file://db/migration",
-	//	"postgresql://postgres:admin@localhost:5432/postgres?sslmode=disable")
-	//if err != nil {
-	//	log.Error(err)
-	//}
-	//// May be this one
-	//if err := m.Up(); err != migrate.ErrNoChange {
-	//	log.Error(err)
-	//}
+
+	//Port int `required:"true" envconfig:"PORT" default:"8080"`
+	//Пока не знаю как пробросить
 
 	// Create connection with api
-
 	var env envConfig
 	err := envconfig.Process("THR", &env)
 	if err != nil {
@@ -80,8 +71,4 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 	os.Exit(1)
-
-	// TODO:
-	// * БД - сохранять результаты в таблицу users
-	// tests
 }

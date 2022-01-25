@@ -8,8 +8,10 @@ import (
 	"gorm.io/gorm"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // This method send GET and POST request
@@ -60,6 +62,7 @@ func (j *Worker) GetUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Cant find this id Please check id again", http.StatusNotFound)
 		return
 	} else {
+		db.GetInfoById(j.DB, params["id"])
 		json.NewEncoder(w).Encode(data.Output.Username)
 		return
 	}
@@ -120,8 +123,7 @@ func (j *Worker) ParseUser(w http.ResponseWriter, r *http.Request) {
 	} else {
 		j.Create(user.Id, task.Username)
 		j.JobsChan <- user.Id
-		//Корректно ли это Хммм ...
-		//db.Crete(j.DB, j.SafeZone.Status[user.Id], user.Id)
+		db.AddRecord(j.DB, user.Id)
 	}
 	json.NewEncoder(w).Encode(user)
 }
@@ -219,17 +221,39 @@ func (j *Worker) GetUsernameById(id string) (username string) {
 	return username
 }
 
+// Check connection
+func tryConnection() *gorm.DB {
+
+	for errCounter := 0; errCounter < 6; errCounter++ {
+		res, err := db.Init()
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		return res
+	}
+
+	log.Error("Sorry but i cant connect to db try again")
+	return nil
+}
+
 //If we want use db May be we will try create handler at here
 func New(bufferSize int) *Worker {
 	jobs := make(chan string, bufferSize)
 	status := make(map[string]*OutputData)
-	Db := db.Init()
+	Db := tryConnection()
 	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}, DB: Db}
 	return w
 }
 
 func (j *Worker) Start() {
 	ConnectionAPI(j)
+}
+
+func (j *Worker) Close() {
+	time.Sleep(time.Second)
+	db.CloseDb(j.DB)
+	os.Exit(1)
 }
 
 func ConnectionAPI(w *Worker) {
@@ -244,5 +268,6 @@ func ConnectionAPI(w *Worker) {
 	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		log.Error(err)
+		return
 	}
 }

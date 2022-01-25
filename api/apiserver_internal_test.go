@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/gorilla/mux"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,10 +13,15 @@ import (
 func TestAddNewUser(t *testing.T) {
 	w := New(1)
 	go w.Start()
-	data := `{
-    "username": "rahmaninov"
-}`
-	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer([]byte(data)))
+	// Create new user and check data
+	testProfile := User{Username: "rahmaninov"}
+	data, err := json.Marshal(testProfile)
+	if err != nil {
+		t.Error("json.Marshal cant understand format")
+	}
+
+	// request to api-server
+	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,39 +33,48 @@ func TestAddNewUser(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
-	expected := `{"id":"498081"}
-`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
-	}
-}
 
-func TestGetEmptyInfo(t *testing.T) {
-	// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
-	// pass 'nil' as the third parameter.
-	w := New(1)
-	go w.Start()
-
-	req, err := http.NewRequest("GET", "/users", nil)
+	testId := Inside{Id: "498081"}
+	data, err = json.Marshal(testId)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// We create a ResponseRecorder (which satisfies http.ResponseWriter) to record the response.
+
+	// On system programming 0x0a == \n
+	data = append(data, 0x0a)
+
+	if rr.Body.String() != string(data) {
+		t.Errorf("handler returned unexpected body: got %v want %v",
+			rr.Body.String(), string(data))
+	}
+
+	w.Close()
+}
+
+func TestGetEmptyInfo(t *testing.T) {
+	w := New(1)
+	go w.Start()
+
+	_, err := http.NewRequest("GET", "/users", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(w.GetAllUsers)
-	// Our handlers satisfy http.Handler, so we can call their ServeHTTP method
-	// directly and pass in our Request and ResponseRecorder.
-	handler.ServeHTTP(rr, req)
-	// Check the status code is what we expect.
-	if status := rr.Code; status != http.StatusOK {
+	resp, err := http.Get("http://localhost:8080/users")
+	if status := resp.StatusCode; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
 
-	// Check the response body is what we expect.
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("Unknown data")
+	}
+	bodyString := string(bodyBytes)
+
 	var expected = "null\n"
-	if rr.Body.String() != expected {
+	if bodyString != expected {
 		t.Errorf("handler returned unexpected body: got %v want %v",
 			rr.Body.String(), expected)
 	}
@@ -67,10 +83,14 @@ func TestGetEmptyInfo(t *testing.T) {
 func TestGetUsers(t *testing.T) {
 	w := New(1)
 	go w.Start()
-	data := `{
-    "username": "rahmaninov"
-}`
-	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer([]byte(data)))
+
+	testProfile := User{Username: "rahmaninov"}
+	data, err := json.Marshal(testProfile)
+	if err != nil {
+		t.Error("json.Marshal cant understand format")
+	}
+
+	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,11 +102,19 @@ func TestGetUsers(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
-	expected := `{"id":"727887"}
-`
-	if rr.Body.String() != expected {
+
+	testId := Inside{Id: "498081"}
+	data, err = json.Marshal(testId)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// On system programming 0x0a == \n
+	data = append(data, 0x0a)
+
+	if rr.Body.String() != string(data) {
 		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
+			rr.Body.String(), string(data))
 	}
 
 	req, err = http.NewRequest("GET", "/users", nil)
@@ -94,19 +122,22 @@ func TestGetUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 	rr = httptest.NewRecorder()
-	handler = http.HandlerFunc(w.GetAllUsers)
-	handler.ServeHTTP(rr, req)
-	// Check the status code is what we expect.
-	if status := rr.Code; status != http.StatusOK {
+	resp, err := http.Get("http://localhost:8080/users")
+	if status := resp.StatusCode; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("Unknown data")
+	}
+	bodyString := string(bodyBytes)
 	// Check the response body is what we expect.
-	expected = "[\"rahmaninov\"]\n"
-	if rr.Body.String() != expected {
+	data = []byte("[\"rahmaninov\"]\n")
+	if bodyString != string(data) {
 		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
+			rr.Body.String(), string(data))
 	}
 }
 
@@ -163,10 +194,14 @@ func TestGetUserInfo(t *testing.T) {
 func TestGetUserStatus(t *testing.T) {
 	w := New(1)
 	go w.Start()
-	data := `{
-    "username": "rahmaninov"
-}`
-	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer([]byte(data)))
+
+	testProfile := User{Username: "rahmaninov"}
+	data, err := json.Marshal(testProfile)
+	if err != nil {
+		t.Error("json.Marshal cant understand format")
+	}
+
+	req, err := http.NewRequest("POST", "/users", bytes.NewBuffer(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,35 +213,45 @@ func TestGetUserStatus(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
-	expected := `{"id":"498081"}
-`
-	if rr.Body.String() != expected {
+
+	testId := Inside{Id: "498081"}
+	data, err = json.Marshal(testId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, 0x0a)
+
+	if rr.Body.String() != string(data) {
 		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
+			rr.Body.String(), string(data))
 	}
 
 	req, err = http.NewRequest("GET", "/users/{id}/status", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vars := map[string]string{
-		"id": "498081",
-	}
 
 	rr = httptest.NewRecorder()
-	req = mux.SetURLVars(req, vars)
-	handler = http.HandlerFunc(w.GetUserStatus)
-	handler.ServeHTTP(rr, req)
-	if status := rr.Code; status != http.StatusOK {
+	resp, err := http.Get("http://localhost:8080/users/498081/status")
+	if status := resp.StatusCode; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v",
 			status, http.StatusOK)
 	}
 
 	// Check the response body is what we expect.
-	expected = `{"output":{"avatar":"","bio":"","created_at":"0001-01-01T00:00:00Z","images":null,"name":"","username":"rahmaninov","videos":null},"state":"In Work"}
-`
-	if rr.Body.String() != expected {
+	testOutput := &OutputData{}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("Unknown data")
+	}
+	err = json.Unmarshal(bodyBytes, &testOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if testOutput.Output.Username != "rahmaninov" {
 		t.Errorf("handler returned unexpected body: got %v want %v",
-			rr.Body.String(), expected)
+			rr.Body.String(), "rahmaninov")
 	}
 }
