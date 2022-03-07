@@ -7,17 +7,18 @@ import (
 	"gorm.io/gorm"
 )
 
-func Init(user string, pass string, database string) (*gorm.DB, error) {
-	dbURL := "postgres://" + user + ":" + pass + "@localhost:5432/" + database
+func Init(dbURL string) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
 	if err != nil {
 		log.Fatalln(err)
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&Data{}); err != nil {
+	if err := db.AutoMigrate(&Tasks{}); err != nil {
 		return nil, err
 	}
+	// other table we must create
+
 	return db, nil
 }
 

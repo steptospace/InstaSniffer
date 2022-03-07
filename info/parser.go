@@ -3,10 +3,11 @@ package info
 import (
 	"InstaSniffer/api"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func UploadData(url string) (err error, ii api.ImportantInfo) {
@@ -33,9 +34,6 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 		return err, ii
 	}
 
-	// We can check  cookies
-	//fmt.Println(res.Cookies())
-
 	if res.Body != nil {
 		defer res.Body.Close()
 	}
@@ -53,8 +51,6 @@ func UploadData(url string) (err error, ii api.ImportantInfo) {
 	accounting(data)
 	return nil, data
 }
-
-// Определится с полями какие в бд нужны и в каком виде
 
 func accounting(data api.ImportantInfo) {
 	file, _ := json.MarshalIndent(data, "", " ")

@@ -16,3 +16,6 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(m.Run())
 }
+
+func TestConnection (t *testing.T) {
+}

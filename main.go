@@ -53,6 +53,8 @@ func startWork(id int, w *api.Worker) {
 
 //go:generate oapi-codegen -generate types -package api -o api/api.gen.go swagger.yaml
 
+
+
 func main() {
 
 	// Create connection with api
@@ -61,8 +63,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-
-	w := api.New(env.BufferSize, env.PostgresUser, env.PostgresPass, env.PostgresDb)
+	dbURL := "postgres://" + env.PostgresUser + ":" + env.PostgresPass + "@localhost:5432/" + env.PostgresDb
+	w := api.New(env.BufferSize, dbURL)
 	go w.Start(env.Port)
 
 	for i := 1; i <= env.Threads; i++ {

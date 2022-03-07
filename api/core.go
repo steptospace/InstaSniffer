@@ -236,10 +236,10 @@ func (j *Worker) GetUsernameById(id string) (username string) {
 }
 
 // Check connection
-func tryConnection(user string, pass string, database string) *gorm.DB {
+func tryConnection(dbURL string) *gorm.DB {
 
 	for errCounter := 0; errCounter < 6; errCounter++ {
-		res, err := db.Init(user, pass, database)
+		res, err := db.Init(dbURL)
 		if err != nil {
 			time.Sleep(10 * time.Second)
 			continue
@@ -252,10 +252,10 @@ func tryConnection(user string, pass string, database string) *gorm.DB {
 }
 
 //If we want use db May be we will try create handler at here
-func New(bufferSize int, user string, pass string, database string) *Worker {
+func New(bufferSize int, dbURL string) *Worker {
 	jobs := make(chan string, bufferSize)
 	status := make(map[string]*OutputData)
-	Db := tryConnection(user, pass, database)
+	Db := tryConnection(dbURL)
 	w := &Worker{JobsChan: jobs, SafeZone: SafeMapState{Status: status}, DB: Db}
 	return w
 }
