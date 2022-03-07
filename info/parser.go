@@ -11,7 +11,6 @@ import (
 )
 
 func UploadData(url string) (err error, ii api.ImportantInfo) {
-
 	url = "http://www.instagram.com/" + url + "/?__a=1"
 	userData := Configure{}
 	spaceClient := http.Client{
