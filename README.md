@@ -15,5 +15,8 @@ DB Migration:
 
 Check docker-compose:
 #### docker-compose up -d
+<<<<<<< HEAD
 
 We are trying new methods
+=======
+>>>>>>> 26c7092724eeb1f900ecaa8d4fd94ec0dafe9b45
